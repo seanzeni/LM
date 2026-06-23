@@ -1,0 +1,175 @@
+{
+  "files": {
+    "default_input_file": "input.xlsx",
+    "default_ndvr_file": "mainframe_location.txt",
+    "default_input_folder": ".",
+    "default_output_folder": "Output",
+    "remember_last_used_files": true
+  },
+
+  "reports": {
+    "include_empty_reports_default": true
+  },
+
+  "workload": {
+    "default_thread_count": 5,
+
+    "type_categories": {
+      "JCL": ["JCL"],
+      "NON_COMPILE": ["PROC", "PARM", "CARD", "CNTL", "SYSIN"],
+      "COBOL": ["COBOL", "CBL", "COPYBOOK"],
+      "APS": ["APS"],
+      "X_ELEMENTS": ["X", "XML", "XMIT"],
+      "LINKDECK": ["LINK", "LNK", "LINKDECK"]
+    },
+
+    "types_per_hour_per_thread": {
+      "QUAL": {
+        "JCL": 30,
+        "NON_COMPILE": 20,
+        "COBOL": 8,
+        "APS": 6,
+        "X_ELEMENTS": 10,
+        "LINKDECK": 12
+      },
+
+      "PROD": {
+        "JCL": 30,
+        "NON_COMPILE": 20,
+        "COBOL": 8,
+        "APS": 6,
+        "X_ELEMENTS": 10,
+        "LINKDECK": 12
+      }
+    }
+  },
+
+  "required_columns": [
+    "Release",
+    "DSN ID",
+    "Submitter",
+    "Project",
+    "Overlap",
+    "Element",
+    "Type",
+    "Subsys",
+    "SS Region",
+    "System",
+    "Act Rgn",
+    "Application",
+    "Package",
+    "Area",
+    "Service"
+  ],
+
+  "selection_rules": {
+    "overlap_selectable": false,
+    "duplicate_selectable": false,
+    "missing_ndvr_selectable": false,
+
+    "archive_in_qual_selectable": false,
+    "potential_missing_archive_selectable": false,
+    "potential_missing_program_move_selectable": true,
+
+    "inventory_not_in_release_selectable": true,
+    "inventory_when_sql_no_inventory_selectable": true,
+    "sql_expected_inventory_missing_selectable": false,
+    "effort_release_mismatch_selectable": true,
+
+    "do_not_move_selectable": false,
+    "already_in_environment_selectable": false,
+    "marked_already_there_missing_selectable": true
+  },
+
+  "type_archive_pairs": [
+    ["BAPS", "BCOB"],
+    ["OAPS", "OCOB"],
+    ["XAPS", "XCOB"],
+    ["BAPSDB2", "BCOBDB2"],
+    ["OAPSDB2", "OCOBDB2"],
+    ["XAPSDB2", "XCOBDB2"],
+    ["BAPSIDB2", "BCOBIDB2"],
+    ["XAPSIDB2", "XCOBIDB2"],
+    ["BAPSIMS", "BCOBIMS"],
+    ["OAPSIMS", "OCOBIMS"],
+    ["XAPSIMS", "XCOBIMS"]
+  ],
+
+  "status_markers": {
+    "marker_columns": ["Package"],
+    // All markers should be in uppercase, that is how the program
+    // uses to search for string patterns.
+    "do_not_move": [
+      "DO NOT MOVE",
+      "DONOTMOVE",
+      "DONT MOVE",
+      "DON'T MOVE",
+      "NO MOVE"
+    ],
+
+    "already_in_prod": ["PROD"],
+
+    "already_in_qual": ["QUAL"]
+  },
+
+  "database": {
+    "driver": "ODBC Driver 17 for SQL Server",
+    "server": "",
+    "database": "",
+    "trusted_connection": true
+  },
+
+  "ui": {
+    "window_title": "Mainframe Export Tool",
+    "window_width": 1600,
+    "window_height": 950,
+    "remember_window_size": true,
+
+    "appearance_mode": "System",
+    "color_theme": "blue",
+
+    "min_threads": 1,
+    "max_threads": 20,
+
+    "accent_color": "#3B8ED0",
+    "success_color": "#2E8B57",
+    "warning_color": "#C98A00",
+    "error_color": "#C94B4B",
+    "info_color": "#4A90E2",
+
+    "card_color_dark": "#2B2B2B",
+    "card_color_light": "#F2F2F2",
+
+    "tree_background_dark": "#1F1F1F",
+    "tree_background_light": "#FFFFFF",
+
+    "table_background_dark": "#1F1F1F",
+    "table_background_light": "#FFFFFF",
+
+    "status_bar_dark": "#202020",
+    "status_bar_light": "#F7F7F7",
+
+    "alternate_row_dark": "#252525",
+    "alternate_row_light": "#F9F9F9",
+
+    "highlight_row_dark": "#3B4B61",
+    "highlight_row_light": "#DCEEFF",
+
+    "font_family": "Segoe UI",
+    "font_size": 11,
+
+    "show_toolbar": true,
+    "show_status_bar": true,
+
+    "search_delay_ms": 250,
+    "tree_expand_on_load": true,
+    "auto_select_first_release": true,
+
+    "remember": {
+      "last_release": true,
+      "last_mode": true,
+      "last_thread_count": true,
+      "last_theme": true
+    }
+  }
+}
