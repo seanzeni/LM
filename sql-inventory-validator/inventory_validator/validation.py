@@ -383,21 +383,47 @@ def _with_output_enrichment(
     )
     misc_region = resolution.misc_region
     source_system = _element_system_value(element, misc_system_source_column)
+    resolved_merge_region = (
+        misc_region.region
+        if misc_region
+        else project.merge_region
+        if project
+        else ""
+    )
+    resolved_system = misc_region.system if misc_region else source_system
+    resolved_region = misc_region.region if misc_region else ""
+    lookup_source = resolution.lookup_source
+    lookup_detail = resolution.lookup_detail
+
+    if bundle and bundle.test_environment == 0 and project:
+        default_region, default_system = _split_default_merge_region(project.merge_region)
+        if default_region or default_system:
+            resolved_merge_region = default_region
+            resolved_region = default_region
+            resolved_system = default_system
+            lookup_source = "project_merge_region_split"
+            lookup_detail = (
+                f"Bundle.Sequence/TestEnvironment={bundle.sequence}/0; "
+                f"Project Merge Region={project.merge_region}; "
+                f"Region={default_region}; System={default_system}"
+            )
+
+    if "ARCHIVE" in element.ndvr_package_name.upper():
+        resolved_system = "PRIVATE1"
+        lookup_detail = (
+            f"{lookup_detail}; Package contains ARCHIVE, System overridden to PRIVATE1"
+            if lookup_detail
+            else "Package contains ARCHIVE, System overridden to PRIVATE1"
+        )
 
     return replace(
         element,
         team_leader=resolved_team_leader,
-        project_merge_region=(
-            misc_region.region
-            if misc_region
-            else project.merge_region
-            if project
-            else ""
-        ),
-        misc_system=misc_region.system if misc_region else source_system,
-        misc_region=misc_region.region if misc_region else "",
-        misc_lookup_source=resolution.lookup_source,
-        misc_lookup_detail=resolution.lookup_detail,
+        project_merge_region=resolved_merge_region,
+        misc_system=resolved_system,
+        misc_region=resolved_region,
+        misc_lookup_source=lookup_source,
+        misc_lookup_detail=lookup_detail,
     )
 
 
@@ -523,6 +549,14 @@ def _resolve_misc_region(
             f"No nonzero bundle TestEnvironment available; fallback System={source_system}"
         ),
     )
+
+
+def _split_default_merge_region(merge_region: str) -> tuple[str, str]:
+    region, separator, system = merge_region.partition("/")
+    if not separator:
+        return merge_region.strip().upper(), ""
+
+    return region.strip().upper(), system.strip().upper()
 
 
 def _first_misc_region(
