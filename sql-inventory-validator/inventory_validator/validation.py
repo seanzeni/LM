@@ -129,7 +129,12 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             code: str,
             message: str,
             include_assignment_context: bool = True,
+            include_existing_effort_context: bool = False,
         ) -> None:
+            include_effort_context = (
+                include_assignment_context
+                or (include_existing_effort_context and effort is not None)
+            )
             issues.append(
                 ValidationIssue(
                     severity=severity,
@@ -145,34 +150,34 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                     cc_email=team_leader_email,
                     bundle_id=(
                         associated_bundle.id
-                        if include_assignment_context and associated_bundle
+                        if include_effort_context and associated_bundle
                         else ""
                     ),
                     bundle_sequence=(
                         associated_bundle.sequence
-                        if include_assignment_context and associated_bundle
+                        if include_effort_context and associated_bundle
                         else None
                     ),
                     bundle_qual_date=(
                         effort.bundle_qual_move_date
-                        if include_assignment_context and effort
+                        if include_effort_context and effort
                         else None
                     ),
                     bundle_prod_date=(
                         effort.bundle_prod_move_date
-                        if include_assignment_context and effort
+                        if include_effort_context and effort
                         else associated_bundle.bundle_prod_imp_date
                         if include_assignment_context and associated_bundle
                         else None
                     ),
                     effort_qual_date=(
                         effort.bundle_qual_move_date
-                        if include_assignment_context and effort
+                        if include_effort_context and effort
                         else None
                     ),
                     effort_prod_date=(
                         effort.bundle_prod_move_date
-                        if include_assignment_context and effort
+                        if include_effort_context and effort
                         else None
                     ),
                 )
@@ -205,6 +210,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 "ELEMENT_IMP_DATE_MISMATCH",
                 "Element implementation date must match the Project implementation date.",
                 include_assignment_context=False,
+                include_existing_effort_context=True,
             )
             continue
 
