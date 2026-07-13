@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import replace
+from datetime import date
 from .date_window import DateWindow
 from .models import Bundle, Effort, Employee, ElementRecord, MiscSystemRegion
 from .models import Project, Region, Severity, ValidationIssue
@@ -25,6 +26,13 @@ class ValidationInput:
 class ValidationOutput:
     issues: list[ValidationIssue]
     good_elements: list[ElementRecord]
+
+
+@dataclass(frozen=True, slots=True)
+class MiscRegionResolution:
+    misc_region: MiscSystemRegion | None
+    lookup_source: str
+    lookup_detail: str
 
 
 def _owner_email(
@@ -119,6 +127,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
         associated_bundle = _associated_bundle_for_project(
             effort,
             project,
+            element,
             bundles_by_sequence,
             data.bundles,
         )
@@ -258,7 +267,11 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                     "Project Code is longer than eight characters and was not found in RSET Efforts.",
                 )
 
-            default_bundle = _default_bundle_for_project(project, data.bundles)
+            default_bundle = _default_bundle_for_project(
+                project,
+                data.bundles,
+                target_date=element.imp_date,
+            )
             add_issue(
                 Severity.INFO,
                 "EFFORT_NOT_ASSIGNED",
@@ -290,14 +303,14 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             continue
 
         expected_prefixes = region_prefixes_by_env.get(bundle.test_environment, set())
-        actual_misc_region = _find_misc_region(
+        actual_misc_region = _resolve_misc_region(
             element=element,
             bundle=bundle,
             region_prefixes_by_env=region_prefixes_by_env,
             misc_regions_by_prefix=misc_regions_by_prefix,
             misc_regions_by_system=misc_regions_by_system,
             misc_system_source_column=data.misc_system_source_column,
-        )
+        ).misc_region
         actual_prefix = actual_misc_region.prefix if actual_misc_region else ""
 
         if expected_prefixes and actual_prefix and actual_prefix not in expected_prefixes:
@@ -322,6 +335,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 _associated_bundle_for_project(
                     efforts_by_project.get(element.project_key),
                     projects_by_code.get(element.project_key),
+                    element,
                     bundles_by_sequence,
                     data.bundles,
                 ),
@@ -359,7 +373,7 @@ def _with_output_enrichment(
     if team_lead_employee and team_lead_employee.developer:
         resolved_team_leader = team_lead_employee.developer.strip()
 
-    misc_region = _find_misc_region(
+    resolution = _resolve_misc_region(
         element=element,
         bundle=bundle,
         region_prefixes_by_env=region_prefixes_by_env,
@@ -367,6 +381,7 @@ def _with_output_enrichment(
         misc_regions_by_system=misc_regions_by_system,
         misc_system_source_column=misc_system_source_column,
     )
+    misc_region = resolution.misc_region
     source_system = _element_system_value(element, misc_system_source_column)
 
     return replace(
@@ -381,6 +396,8 @@ def _with_output_enrichment(
         ),
         misc_system=misc_region.system if misc_region else source_system,
         misc_region=misc_region.region if misc_region else "",
+        misc_lookup_source=resolution.lookup_source,
+        misc_lookup_detail=resolution.lookup_detail,
     )
 
 
@@ -429,20 +446,21 @@ def _misc_regions_by_prefix(
     return lookup
 
 
-def _find_misc_region(
+def _resolve_misc_region(
     element: ElementRecord,
     bundle: Bundle | None,
     region_prefixes_by_env: dict[int, set[str]],
     misc_regions_by_prefix: dict[str, list[MiscSystemRegion]],
     misc_regions_by_system: dict[str, MiscSystemRegion],
     misc_system_source_column: str,
-) -> MiscSystemRegion | None:
+) -> MiscRegionResolution:
     source_system = _element_system_value(element, misc_system_source_column)
 
     if bundle and bundle.test_environment != 0:
+        prefixes = sorted(region_prefixes_by_env.get(bundle.test_environment, set()))
         candidates = [
             item
-            for prefix in sorted(region_prefixes_by_env.get(bundle.test_environment, set()))
+            for prefix in prefixes
             for item in misc_regions_by_prefix.get(prefix, [])
         ]
         if candidates:
@@ -450,9 +468,71 @@ def _find_misc_region(
                 (item for item in candidates if key(item.system) == key(source_system)),
                 None,
             )
-            return source_match or candidates[0]
+            matched = source_match or candidates[0]
+            return MiscRegionResolution(
+                misc_region=matched,
+                lookup_source="region_prefix",
+                lookup_detail=(
+                    f"Bundle.Sequence/TestEnvironment={bundle.sequence}/"
+                    f"{bundle.test_environment}; Region prefixes={','.join(prefixes)}; "
+                    f"matched Misc Region={matched.region}; matched System={matched.system}"
+                ),
+            )
 
-    return misc_regions_by_system.get(key(source_system))
+        fallback = misc_regions_by_system.get(key(source_system))
+        return MiscRegionResolution(
+            misc_region=fallback,
+            lookup_source="system_fallback",
+            lookup_detail=(
+                f"No MiscEnvironmentSystem rows matched Region prefixes "
+                f"{','.join(prefixes) or 'NONE'} for TestEnvironment "
+                f"{bundle.test_environment}; fallback System={source_system}"
+            ),
+        )
+
+    fallback = misc_regions_by_system.get(key(source_system))
+    if fallback:
+        return MiscRegionResolution(
+            misc_region=fallback,
+            lookup_source="system_fallback",
+            lookup_detail=(
+                f"No nonzero bundle TestEnvironment available; fallback System={source_system}"
+            ),
+        )
+
+    if bundle and bundle.test_environment == 0:
+        selected = _first_misc_region(misc_regions_by_prefix)
+        return MiscRegionResolution(
+            misc_region=selected,
+            lookup_source="test_environment_zero_default",
+            lookup_detail=(
+                f"Bundle.Sequence/TestEnvironment={bundle.sequence}/0; "
+                "region validation is informational for default environments; "
+                + (
+                    f"selected Misc Region={selected.region}; matched System={selected.system}"
+                    if selected
+                    else "no MiscEnvironmentSystem row available"
+                )
+            ),
+        )
+
+    return MiscRegionResolution(
+        misc_region=None,
+        lookup_source="unresolved",
+        lookup_detail=(
+            f"No nonzero bundle TestEnvironment available; fallback System={source_system}"
+        ),
+    )
+
+
+def _first_misc_region(
+    misc_regions_by_prefix: dict[str, list[MiscSystemRegion]],
+) -> MiscSystemRegion | None:
+    for prefix in sorted(misc_regions_by_prefix):
+        items = misc_regions_by_prefix[prefix]
+        if items:
+            return items[0]
+    return None
 
 
 def _element_system_value(element: ElementRecord, source_column: str) -> str:
@@ -469,8 +549,10 @@ def _element_system_value(element: ElementRecord, source_column: str) -> str:
 def _default_bundle_for_project(
     project: Project | None,
     bundles: list[Bundle],
+    target_date: date | None = None,
 ) -> Bundle | None:
-    if project is None or project.imp_date is None:
+    placement_date = target_date or (project.imp_date if project else None)
+    if placement_date is None:
         return None
 
     default_bundles = [
@@ -482,13 +564,13 @@ def _default_bundle_for_project(
         return None
 
     exact_matches = [
-        bundle for bundle in default_bundles if bundle.bundle_prod_imp_date == project.imp_date
+        bundle for bundle in default_bundles if bundle.bundle_prod_imp_date == placement_date
     ]
     if exact_matches:
         return sorted(exact_matches, key=lambda item: item.bundle_prod_imp_date)[0]
 
     future_matches = [
-        bundle for bundle in default_bundles if bundle.bundle_prod_imp_date >= project.imp_date
+        bundle for bundle in default_bundles if bundle.bundle_prod_imp_date >= placement_date
     ]
     if future_matches:
         return sorted(future_matches, key=lambda item: item.bundle_prod_imp_date)[0]
@@ -499,10 +581,11 @@ def _default_bundle_for_project(
 def _associated_bundle_for_project(
     effort: Effort | None,
     project: Project | None,
+    element: ElementRecord,
     bundles_by_sequence: dict[int, Bundle],
     bundles: list[Bundle],
 ) -> Bundle | None:
     if effort and effort.bundle_sequence is not None:
         return bundles_by_sequence.get(effort.bundle_sequence)
 
-    return _default_bundle_for_project(project, bundles)
+    return _default_bundle_for_project(project, bundles, target_date=element.imp_date)
