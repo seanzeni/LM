@@ -1,0 +1,43 @@
+{
+  "connections": {
+    "prod_inventory": {
+      "driver": "ODBC Driver 17 for SQL Server",
+      "server": "db,1433",
+      "database": "ProdInventory",
+      "trusted_connection": true,
+      "username": "",
+      "password": ""
+    },
+    "rset": {
+      "driver": "ODBC Driver 17 for SQL Server",
+      "server": "db,1433",
+      "database": "RSET",
+      "trusted_connection": true,
+      "username": "",
+      "password": ""
+    }
+  },
+  "email": {
+    "domain": "domain.com",
+    "from_address": "inventory-validation@domain.com"
+  },
+  "outputs": {
+    "output_dir": "outputs",
+    "write_xlsx": true,
+    "write_csv": true,
+    "write_email_drafts": true
+  },
+  "validation": {
+    "today": null,
+    "misc_system_source_column": "Subsystem"
+  },
+  "tables": {
+    "employees": "Employees",
+    "projects": "Projects",
+    "elements": "Elements",
+    "efforts": "Efforts",
+    "bundles": "Bundles",
+    "regions": "Regions",
+    "misc_system_region": "MiscSystemRegion"
+  }
+}

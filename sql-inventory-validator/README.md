@@ -1,0 +1,131 @@
+# SQL Inventory Validator
+
+Standalone pipeline app for validating `ProdInventory` data before it becomes
+the consolidated inventory workbook used by the coordination module.
+
+## What It Does
+
+1. Loads source data from SQL Server:
+   - `ProdInventory.dbo.Employees`
+   - `ProdInventory.dbo.Projects`
+   - `ProdInventory.dbo.Elements`
+   - `RSET.dbo.Efforts`
+   - `RSET.dbo.Bundles`
+   - `RSET.dbo.Regions`
+   - `RSET.dbo.MiscSystemRegion`
+2. Validates project, employee, date, and region relationships.
+3. Writes customer-ready issue outputs.
+4. Writes clean consolidated-inventory source rows containing only records with
+   no blocking errors.
+5. Writes email-ready issue groupings by responsible employee/team lead.
+
+## Install
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+## Configure
+
+Copy the example config and update server, schema, output, and email settings:
+
+```powershell
+Copy-Item config.example.json config.json
+```
+
+The `email.domain` value is appended to four-character developer IDs from the
+Employees table. For example, `ABCD` and `domain.com` become
+`ABCD@domain.com`.
+
+## Run
+
+```powershell
+python -m inventory_validator --config config.json
+```
+
+Outputs are written to the folder configured by `outputs.output_dir`.
+
+## Test
+
+```powershell
+python -m unittest discover -s tests
+```
+
+## Date Window
+
+The pipeline only loads projects/elements in the active implementation window:
+
+- On days 1-14 of a month: previous month and future.
+- On day 15 or later: current month and future.
+
+This keeps old implementation data out of the validation run while still
+allowing mid-month cleanup of the previous month.
+
+## Blocking Errors
+
+Rows with blocking errors are excluded from the consolidated inventory source
+output. Warnings are reported but remain eligible.
+
+Current blocking checks include:
+
+- Element Project Code is missing from Projects.
+- Element implementation date does not match the Project implementation date.
+- Element name is longer than eight characters.
+- Region validation fails for non-zero bundle TestEnvironment.
+
+Current warnings include:
+
+- Effort exists but the referenced Bundle is missing.
+- Project Team Leader is empty.
+- Element Developer is empty.
+- Element Developer is not exactly four characters.
+- Element Team Leader is empty.
+- Project Code is longer than eight characters and is not found in RSET Efforts,
+  which is flagged as `POTENTIAL_MISTYPE`.
+
+Current info rows are not written to issue outputs. When they apply to a clean
+row, they are added to the good output `Validation Notes` column:
+
+- Project is not found in RSET Efforts yet and will be default placed.
+- Bundle TestEnvironment is zero, so region placement is skipped on purpose.
+
+CCID is not validated from the Projects table. Output rows derive CCID from the
+first six characters of Project Code.
+
+Rows stop further validation and assignment when:
+
+- No matching Project exists.
+- Required Element Developer is empty or not exactly four characters.
+- Required Element Team Leader is empty.
+- Element Imp Date does not match Project Imp Date.
+
+Developer IDs are not validated against Employees. Employees is used only to
+resolve Team Leader last names where `Position = TL`. When a match is found,
+the clean output replaces the Team Leader value with that employee's
+four-character Developer ID and uses that ID for issue routing when needed.
+Issue email drafts also add the resolved Team Leader email to `Cc` when the
+primary recipient is someone else.
+
+Email drafts group issues by project and include project-level context before
+the row details:
+
+- Associated Bundle and Bundle Sequence.
+- Bundle Qual/Prod dates when available.
+- Project Imp Date.
+- Unique Effort Qual/Prod dates when the project is found in RSET Efforts.
+- For implementation-date mismatches, each row also shows Element Imp Date.
+
+The clean output includes:
+
+- `Merge Region` from Projects.
+- Canonical `System` from MiscSystemRegion.
+- Canonical `Region` from MiscSystemRegion.
+
+The output workbook includes summary/detail sheets for:
+
+- `MISSING_PROJECTS`: count of elements per missing project plus all affected
+  element rows.
+- `IMPLEMENTATION_DATE_MISMATCH`: count of elements per project where Element
+  Imp Date does not match Project Imp Date, plus all affected element rows.
