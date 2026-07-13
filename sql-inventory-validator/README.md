@@ -12,7 +12,8 @@ the consolidated inventory workbook used by the coordination module.
    - `RSET.dbo.Efforts`
    - `RSET.dbo.Bundles`
    - `RSET.dbo.Regions`
-   - `RSET.dbo.MiscSystemRegion`
+   - `RSET.dbo.MiscEnvironmentSystem`
+   - RSET Efforts are limited to active rows where `BundleExitDate IS NULL`.
 2. Validates project, employee, date, and region relationships.
 3. Writes customer-ready issue outputs.
 4. Writes clean consolidated-inventory source rows containing only records with
@@ -89,7 +90,8 @@ Current info rows are not written to issue outputs. When they apply to a clean
 row, they are added to the good output `Validation Notes` column:
 
 - Project is not found in RSET Efforts yet and will be default placed.
-- Bundle TestEnvironment is zero, so region placement is skipped on purpose.
+- Bundle TestEnvironment is zero, so region mismatch errors are skipped on
+  purpose while Region/System enrichment still runs.
 
 CCID is not validated from the Projects table. Output rows derive CCID from the
 first six characters of Project Code.
@@ -100,6 +102,10 @@ Rows stop further validation and assignment when:
 - Required Element Developer is empty or not exactly four characters.
 - Required Element Team Leader is empty.
 - Element Imp Date does not match Project Imp Date.
+
+Stop-condition issues are not default-placed. If RSET already has an Effort for
+the project, emails may still show that existing Effort/Bundle context so users
+can see what SQL currently says, but the row is not treated as assignable.
 
 Developer IDs are not validated against Employees. Employees is used only to
 resolve Team Leader last names where `Position = TL`. When a match is found,
@@ -117,11 +123,25 @@ the row details:
 - Unique Effort Qual/Prod dates when the project is found in RSET Efforts.
 - For implementation-date mismatches, each row also shows Element Imp Date.
 
-The clean output includes:
+The clean CSV output is always written as `consolidated_inventory_source.csv`.
+It includes:
 
-- `Merge Region` from Projects.
-- Canonical `System` from MiscSystemRegion.
-- Canonical `Region` from MiscSystemRegion.
+- `Merge Region` from `MiscEnvironmentSystem.Region`.
+- Canonical `System` from MiscEnvironmentSystem.
+- Canonical `Region` from MiscEnvironmentSystem.
+- `Misc Lookup Source` and `Misc Lookup Detail` trace columns showing whether
+  the Misc row came from the region-prefix path, direct system fallback,
+  default TestEnvironment 0 selection, or was unresolved.
+
+MiscEnvironmentSystem is selected through the release location path:
+`Effort.BundleSequence -> Bundle.Sequence -> Bundle.TestEnvironment ->
+Regions.TestEnvironment -> Regions.Id prefix -> MiscEnvironmentSystem.Region
+prefix`. If that cannot be resolved, the validator falls back to the
+configured element source column for a direct `MiscEnvironmentSystem.System`
+match. For default bundles with `TestEnvironment = 0`, Region/System values
+are still pulled from `MiscEnvironmentSystem`; if there is no direct System
+match, the validator chooses the first available MiscEnvironmentSystem row in a
+stable sorted order because any default region is acceptable.
 
 The output workbook includes summary/detail sheets for:
 
