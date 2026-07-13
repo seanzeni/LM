@@ -172,11 +172,13 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(codes["REGION_VALIDATION_SKIPPED"], Severity.INFO)
         self.assertEqual(len(result.good_elements), 1)
 
-    def test_test_environment_zero_still_enriches_misc_region_and_system(self) -> None:
+    def test_test_environment_zero_uses_project_merge_region_split(self) -> None:
         data = _input([_element(subsystem="NOT_A_MISC_SYSTEM")])
         skipped_data = ValidationInput(
             employees=data.employees,
-            projects=data.projects,
+            projects=[
+                Project("ABC1234", "ABC123", "Project", "TL01", "rgn-a/sys-a", date(2026, 7, 20))
+            ],
             elements=data.elements,
             efforts=data.efforts,
             bundles=[Bundle("DEFAULT", 10, 0, date(2026, 7, 31))],
@@ -191,13 +193,23 @@ class ValidationTests(unittest.TestCase):
         result = validate_inventory(skipped_data, "domain.com")
 
         self.assertEqual(len(result.good_elements), 1)
-        self.assertEqual(result.good_elements[0].misc_system, "CanonicalSystem")
-        self.assertEqual(result.good_elements[0].misc_region, "RGN-Proper")
-        self.assertEqual(result.good_elements[0].project_merge_region, "RGN-Proper")
+        self.assertEqual(result.good_elements[0].misc_system, "SYS-A")
+        self.assertEqual(result.good_elements[0].misc_region, "RGN-A")
+        self.assertEqual(result.good_elements[0].project_merge_region, "RGN-A")
         self.assertEqual(
             result.good_elements[0].misc_lookup_source,
-            "test_environment_zero_default",
+            "project_merge_region_split",
         )
+
+    def test_archive_package_overrides_system_to_private1(self) -> None:
+        result = validate_inventory(
+            _input([_element(ndvr_package_name="MY_ARCHIVE_PACKAGE")]),
+            "domain.com",
+        )
+
+        self.assertEqual(result.good_elements[0].misc_system, "PRIVATE1")
+        self.assertEqual(result.good_elements[0].misc_region, "RGN2")
+        self.assertIn("ARCHIVE", result.good_elements[0].misc_lookup_detail)
 
     def test_unassigned_effort_uses_element_date_for_future_default_bundle(self) -> None:
         data = _input([_element(project_code="FUT2027", imp_date=date(2027, 7, 7))])
