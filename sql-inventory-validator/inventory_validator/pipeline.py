@@ -33,7 +33,7 @@ def run_pipeline(config: AppConfig) -> PipelineResult:
     efforts = repository.load_efforts()
     bundles = repository.load_bundles()
     regions = repository.load_regions()
-    misc_regions = repository.load_misc_system_regions()
+    misc_environment_systems = repository.load_misc_environment_systems()
 
     validation = validate_inventory(
         ValidationInput(
@@ -43,7 +43,7 @@ def run_pipeline(config: AppConfig) -> PipelineResult:
             efforts=efforts,
             bundles=bundles,
             regions=regions,
-            misc_regions=misc_regions,
+            misc_regions=misc_environment_systems,
             date_window=window,
             misc_system_source_column=config.validation.misc_system_source_column,
         ),
