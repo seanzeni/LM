@@ -349,7 +349,13 @@ def _with_output_enrichment(
     return replace(
         element,
         team_leader=resolved_team_leader,
-        project_merge_region=project.merge_region if project else "",
+        project_merge_region=(
+            misc_region.region
+            if misc_region
+            else project.merge_region
+            if project
+            else ""
+        ),
         misc_system=misc_region.system if misc_region else source_system,
         misc_region=misc_region.region if misc_region else "",
     )
