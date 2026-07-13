@@ -68,6 +68,8 @@ class ElementRecord:
     project_merge_region: str = ""
     misc_system: str = ""
     misc_region: str = ""
+    misc_lookup_source: str = ""
+    misc_lookup_detail: str = ""
     source_row: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -105,13 +107,16 @@ class Region:
 
 
 @dataclass(frozen=True, slots=True)
-class MiscSystemRegion:
+class MiscEnvironmentSystem:
     system: str
     region: str
 
     @property
     def prefix(self) -> str:
         return self.region.strip().upper()[:3]
+
+
+MiscSystemRegion = MiscEnvironmentSystem
 
 
 @dataclass(frozen=True, slots=True)
