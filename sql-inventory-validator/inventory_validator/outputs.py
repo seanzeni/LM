@@ -44,9 +44,10 @@ def write_outputs(
         _issue_elements(reportable_issues, "ELEMENT_IMP_DATE_MISMATCH"),
     )
 
+    good_df.to_csv(run_dir / "consolidated_inventory_source.csv", index=False)
+
     if write_csv:
         issues_df.to_csv(run_dir / "validation_issues.csv", index=False)
-        good_df.to_csv(run_dir / "consolidated_inventory_source.csv", index=False)
         email_df.to_csv(run_dir / "email_recipients.csv", index=False)
         missing_projects_summary_df.to_csv(
             run_dir / "missing_projects_summary.csv",
