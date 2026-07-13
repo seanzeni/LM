@@ -74,9 +74,8 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
         bundle.sequence: bundle for bundle in data.bundles if bundle.sequence is not None
     }
     region_prefixes_by_env = _region_prefixes_by_env(data.regions)
-    misc_regions_by_system = {
-        key(item.system): item for item in data.misc_regions if item.system
-    }
+    misc_regions_by_system = _misc_regions_by_system(data.misc_regions)
+    misc_regions_by_prefix = _misc_regions_by_prefix(data.misc_regions)
 
     issues: list[ValidationIssue] = []
     bad_element_ids: set[int] = set()
@@ -291,8 +290,14 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             continue
 
         expected_prefixes = region_prefixes_by_env.get(bundle.test_environment, set())
-        actual_system = _element_system_value(element, data.misc_system_source_column)
-        actual_misc_region = misc_regions_by_system.get(key(actual_system))
+        actual_misc_region = _find_misc_region(
+            element=element,
+            bundle=bundle,
+            region_prefixes_by_env=region_prefixes_by_env,
+            misc_regions_by_prefix=misc_regions_by_prefix,
+            misc_regions_by_system=misc_regions_by_system,
+            misc_system_source_column=data.misc_system_source_column,
+        )
         actual_prefix = actual_misc_region.prefix if actual_misc_region else ""
 
         if expected_prefixes and actual_prefix and actual_prefix not in expected_prefixes:
@@ -314,6 +319,14 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 element,
                 projects_by_code.get(element.project_key),
                 tl_employees_by_last_name,
+                _associated_bundle_for_project(
+                    efforts_by_project.get(element.project_key),
+                    projects_by_code.get(element.project_key),
+                    bundles_by_sequence,
+                    data.bundles,
+                ),
+                region_prefixes_by_env,
+                misc_regions_by_prefix,
                 misc_regions_by_system,
                 data.misc_system_source_column,
             )
@@ -335,6 +348,9 @@ def _with_output_enrichment(
     element: ElementRecord,
     project: Project | None,
     tl_employees_by_last_name: dict[str, Employee],
+    bundle: Bundle | None,
+    region_prefixes_by_env: dict[int, set[str]],
+    misc_regions_by_prefix: dict[str, list[MiscSystemRegion]],
     misc_regions_by_system: dict[str, MiscSystemRegion],
     misc_system_source_column: str,
 ) -> ElementRecord:
@@ -343,8 +359,15 @@ def _with_output_enrichment(
     if team_lead_employee and team_lead_employee.developer:
         resolved_team_leader = team_lead_employee.developer.strip()
 
+    misc_region = _find_misc_region(
+        element=element,
+        bundle=bundle,
+        region_prefixes_by_env=region_prefixes_by_env,
+        misc_regions_by_prefix=misc_regions_by_prefix,
+        misc_regions_by_system=misc_regions_by_system,
+        misc_system_source_column=misc_system_source_column,
+    )
     source_system = _element_system_value(element, misc_system_source_column)
-    misc_region = misc_regions_by_system.get(key(source_system))
 
     return replace(
         element,
@@ -379,6 +402,57 @@ def _region_prefixes_by_env(regions: list[Region]) -> dict[int, set[str]]:
             continue
         lookup.setdefault(region.test_environment, set()).add(region.prefix)
     return lookup
+
+
+def _misc_regions_by_system(
+    misc_regions: list[MiscSystemRegion],
+) -> dict[str, MiscSystemRegion]:
+    return {
+        key(item.system): item
+        for item in misc_regions
+        if item.system
+    }
+
+
+def _misc_regions_by_prefix(
+    misc_regions: list[MiscSystemRegion],
+) -> dict[str, list[MiscSystemRegion]]:
+    lookup: dict[str, list[MiscSystemRegion]] = {}
+    for item in misc_regions:
+        if not item.prefix:
+            continue
+        lookup.setdefault(item.prefix, []).append(item)
+
+    for items in lookup.values():
+        items.sort(key=lambda item: (item.region.upper(), item.system.upper()))
+
+    return lookup
+
+
+def _find_misc_region(
+    element: ElementRecord,
+    bundle: Bundle | None,
+    region_prefixes_by_env: dict[int, set[str]],
+    misc_regions_by_prefix: dict[str, list[MiscSystemRegion]],
+    misc_regions_by_system: dict[str, MiscSystemRegion],
+    misc_system_source_column: str,
+) -> MiscSystemRegion | None:
+    source_system = _element_system_value(element, misc_system_source_column)
+
+    if bundle and bundle.test_environment != 0:
+        candidates = [
+            item
+            for prefix in sorted(region_prefixes_by_env.get(bundle.test_environment, set()))
+            for item in misc_regions_by_prefix.get(prefix, [])
+        ]
+        if candidates:
+            source_match = next(
+                (item for item in candidates if key(item.system) == key(source_system)),
+                None,
+            )
+            return source_match or candidates[0]
+
+    return misc_regions_by_system.get(key(source_system))
 
 
 def _element_system_value(element: ElementRecord, source_column: str) -> str:
