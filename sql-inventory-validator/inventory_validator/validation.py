@@ -124,7 +124,12 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             data.bundles,
         )
 
-        def add_issue(severity: Severity, code: str, message: str) -> None:
+        def add_issue(
+            severity: Severity,
+            code: str,
+            message: str,
+            include_assignment_context: bool = True,
+        ) -> None:
             issues.append(
                 ValidationIssue(
                     severity=severity,
@@ -138,18 +143,38 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                     owner_id=owner_id,
                     owner_email=owner_email,
                     cc_email=team_leader_email,
-                    bundle_id=associated_bundle.id if associated_bundle else "",
-                    bundle_sequence=associated_bundle.sequence if associated_bundle else None,
-                    bundle_qual_date=effort.bundle_qual_move_date if effort else None,
-                    bundle_prod_date=(
-                        effort.bundle_prod_move_date
-                        if effort
-                        else associated_bundle.bundle_prod_imp_date
-                        if associated_bundle
+                    bundle_id=(
+                        associated_bundle.id
+                        if include_assignment_context and associated_bundle
+                        else ""
+                    ),
+                    bundle_sequence=(
+                        associated_bundle.sequence
+                        if include_assignment_context and associated_bundle
                         else None
                     ),
-                    effort_qual_date=effort.bundle_qual_move_date if effort else None,
-                    effort_prod_date=effort.bundle_prod_move_date if effort else None,
+                    bundle_qual_date=(
+                        effort.bundle_qual_move_date
+                        if include_assignment_context and effort
+                        else None
+                    ),
+                    bundle_prod_date=(
+                        effort.bundle_prod_move_date
+                        if include_assignment_context and effort
+                        else associated_bundle.bundle_prod_imp_date
+                        if include_assignment_context and associated_bundle
+                        else None
+                    ),
+                    effort_qual_date=(
+                        effort.bundle_qual_move_date
+                        if include_assignment_context and effort
+                        else None
+                    ),
+                    effort_prod_date=(
+                        effort.bundle_prod_move_date
+                        if include_assignment_context and effort
+                        else None
+                    ),
                 )
             )
             if severity == Severity.ERROR or code in {
@@ -164,12 +189,14 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 Severity.ERROR,
                 "ELEMENT_PROJECT_NOT_FOUND",
                 "Element Project Code does not have a corresponding Project.",
+                include_assignment_context=False,
             )
             if len(element.project_code.strip()) > 8 and element.project_key not in efforts_by_project:
                 add_issue(
                     Severity.WARNING,
                     "POTENTIAL_MISTYPE",
                     "Project Code is longer than eight characters and was not found in RSET Efforts.",
+                    include_assignment_context=False,
                 )
             continue
         elif element.imp_date != project.imp_date:
@@ -177,6 +204,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 Severity.ERROR,
                 "ELEMENT_IMP_DATE_MISMATCH",
                 "Element implementation date must match the Project implementation date.",
+                include_assignment_context=False,
             )
             continue
 
@@ -193,6 +221,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 Severity.WARNING,
                 "ELEMENT_DEVELOPER_MISSING",
                 "Element Developer is empty.",
+                include_assignment_context=False,
             )
             missing_required_contact = True
         elif len(element.developer.strip()) != 4:
@@ -200,6 +229,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 Severity.WARNING,
                 "ELEMENT_DEVELOPER_INVALID",
                 "Element Developer must be a four-character ID.",
+                include_assignment_context=False,
             )
             missing_required_contact = True
 
@@ -208,6 +238,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 Severity.WARNING,
                 "ELEMENT_TEAM_LEADER_MISSING",
                 "Element Team Leader is empty.",
+                include_assignment_context=False,
             )
             missing_required_contact = True
 
