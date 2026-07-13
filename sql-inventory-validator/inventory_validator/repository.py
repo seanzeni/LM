@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .config import AppConfig
-from .models import Bundle, Effort, Employee, ElementRecord, MiscSystemRegion
+from .models import Bundle, Effort, Employee, ElementRecord, MiscEnvironmentSystem
 from .models import Project, Region
 from .normalization import clean, parse_bool, parse_date, parse_datetime, parse_int
 from .sql_service import SqlService
@@ -129,6 +129,7 @@ class InventoryRepository:
                 "BundleProdMoveDate",
                 "BundleExitDate",
             ],
+            where_sql="[BundleExitDate] IS NULL",
         )
         return [
             Effort(
@@ -171,16 +172,18 @@ class InventoryRepository:
             for row in rows
         ]
 
-    def load_misc_system_regions(self) -> list[MiscSystemRegion]:
+    def load_misc_environment_systems(self) -> list[MiscEnvironmentSystem]:
         rows = self.rset.fetch_all(
-            self.config.tables.get("misc_system_region", "MiscSystemRegion"),
+            self.config.tables.get("misc_environment_system", "MiscEnvironmentSystem"),
             ["System", "Region"],
         )
         return [
-            MiscSystemRegion(
+            MiscEnvironmentSystem(
                 system=clean(row.get("System")),
                 region=clean(row.get("Region")),
             )
             for row in rows
         ]
 
+    def load_misc_system_regions(self) -> list[MiscEnvironmentSystem]:
+        return self.load_misc_environment_systems()
