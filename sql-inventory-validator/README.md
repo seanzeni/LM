@@ -130,18 +130,19 @@ It includes:
 - Canonical `System` from MiscEnvironmentSystem.
 - Canonical `Region` from MiscEnvironmentSystem.
 - `Misc Lookup Source` and `Misc Lookup Detail` trace columns showing whether
-  the Misc row came from the region-prefix path, direct system fallback,
-  default TestEnvironment 0 selection, or was unresolved.
+  the output Region/System came from the region-prefix path, direct system
+  fallback, Project Merge Region split for default TestEnvironment 0, or was
+  unresolved.
 
 MiscEnvironmentSystem is selected through the release location path:
 `Effort.BundleSequence -> Bundle.Sequence -> Bundle.TestEnvironment ->
 Regions.TestEnvironment -> Regions.Id prefix -> MiscEnvironmentSystem.Region
 prefix`. If that cannot be resolved, the validator falls back to the
 configured element source column for a direct `MiscEnvironmentSystem.System`
-match. For default bundles with `TestEnvironment = 0`, Region/System values
-are still pulled from `MiscEnvironmentSystem`; if there is no direct System
-match, the validator chooses the first available MiscEnvironmentSystem row in a
-stable sorted order because any default region is acceptable.
+match. For default bundles with `TestEnvironment = 0`, the validator splits
+the Project `Merge Region` value on `/`, uppercases both pieces, and uses the
+first half as Region and the second half as System. If the Package contains
+`ARCHIVE`, System is overridden to `PRIVATE1`.
 
 The output workbook includes summary/detail sheets for:
 
