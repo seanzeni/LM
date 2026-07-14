@@ -47,6 +47,12 @@ python -m inventory_validator --config config.json
 ```
 
 Outputs are written to the folder configured by `outputs.output_dir`.
+Email draft templates are opt-in so hourly pipeline runs can skip them. For the
+weekly email prep run, add `--emails`:
+
+```powershell
+python -m inventory_validator --config config.json --emails
+```
 
 ## Test
 
@@ -110,18 +116,23 @@ can see what SQL currently says, but the row is not treated as assignable.
 Developer IDs are not validated against Employees. Employees is used only to
 resolve Team Leader last names where `Position = TL`. When a match is found,
 the clean output replaces the Team Leader value with that employee's
-four-character Developer ID and uses that ID for issue routing when needed.
-Issue email drafts also add the resolved Team Leader email to `Cc` when the
-primary recipient is someone else.
+four-character Developer ID and uses that ID for issue ownership when needed.
+Project email drafts put all issue owners in `To` and resolved Team Leader
+emails in `Cc`.
 
-Email drafts group issues by project and include project-level context before
-the row details:
+Email drafts are generated one file per Project Code and include separate
+sections so users can tell which source owns each value:
 
-- Associated Bundle and Bundle Sequence.
-- Bundle Qual/Prod dates when available.
-- Project Imp Date.
-- Unique Effort Qual/Prod dates when the project is found in RSET Efforts.
-- For implementation-date mismatches, each row also shows Element Imp Date.
+- `RSET Data`: Associated Bundle, Bundle Sequence, Bundle dates, Effort
+  TeamLead, and Effort Qual/Prod dates.
+- `PID Data`: Project Imp Date, Developers, and Team Leads from the
+  ProdInventory/PID-side issue ownership.
+- `Issues`: one row per issue showing severity, code, element, type, owner,
+  team lead, and issue message.
+
+When email drafts are generated, the app also writes
+`email_drafts/issue_resolution_instructions.txt` with simple steps for fixing
+the common issue types.
 
 The clean CSV output is always written as `consolidated_inventory_source.csv`.
 It includes:
