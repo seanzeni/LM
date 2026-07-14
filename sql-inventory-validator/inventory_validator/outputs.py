@@ -111,6 +111,8 @@ def _element_row(
         "Subsys": element.subsystem,
         "System": element.misc_system or element.application,
         "Region": element.misc_region,
+        "Misc Lookup Source": element.misc_lookup_source,
+        "Misc Lookup Detail": element.misc_lookup_detail,
         "Application": element.application,
         "Area": element.application_area,
         "Package": element.ndvr_package_name,
@@ -128,48 +130,46 @@ def _element_row(
 
 
 def _email_rows(issues: list[ValidationIssue]) -> list[dict[str, object]]:
-    grouped: dict[str, list[ValidationIssue]] = defaultdict(list)
-    for issue in issues:
-        if issue.owner_email:
-            grouped[issue.owner_email].append(issue)
-
     rows = []
-    for email, items in sorted(grouped.items()):
+    for project_code, items in _issues_by_project(issues).items():
         rows.append(
             {
-                "email": email,
+                "project_code": project_code,
+                "to": ", ".join(_owner_emails(items)),
+                "cc": ", ".join(_cc_emails(items)),
                 "blocking_errors": sum(1 for item in items if item.severity == Severity.ERROR),
                 "warnings": sum(1 for item in items if item.severity == Severity.WARNING),
                 "issue_count": len(items),
-                "cc": ", ".join(_cc_emails(items, email)),
-                "projects": ", ".join(sorted({item.project_code for item in items if item.project_code})),
+                "developers": ", ".join(_owner_labels(items)),
+                "team_leads": ", ".join(_team_lead_labels(items)),
             }
         )
     return rows
 
 
 def _write_email_drafts(folder: Path, issues: list[ValidationIssue]) -> None:
-    grouped: dict[str, list[ValidationIssue]] = defaultdict(list)
-    for issue in issues:
-        if issue.owner_email:
-            grouped[issue.owner_email].append(issue)
-
     folder.mkdir(parents=True, exist_ok=True)
-    for email, items in grouped.items():
-        safe_name = email.replace("@", "_at_").replace(".", "_")
+    _write_issue_resolution_instructions(folder)
+
+    for project_code, items in _issues_by_project(issues).items():
+        safe_name = _safe_filename(project_code or "NO_PROJECT")
         lines = [
-            "Subject: Inventory data issues need review",
-            f"To: {email}",
-            f"Cc: {', '.join(_cc_emails(items, email))}",
+            f"Subject: Inventory data issues need review - {project_code or 'Unknown Project'}",
+            f"To: {', '.join(_owner_emails(items))}",
+            f"Cc: {', '.join(_cc_emails(items))}",
             "",
-            "The automated inventory validation found items that need review:",
+            "The automated inventory validation found project issues that need review:",
             "",
         ]
-        for project_code, project_items in _issues_by_project(items).items():
-            lines.extend(_project_context_lines(project_code, project_items))
-            for item in project_items:
-                lines.append(_issue_email_line(item))
-            lines.append("")
+        lines.extend(_project_context_lines(project_code, items))
+        lines.append("PID Data")
+        lines.append(f"Project Imp Date: {_unique_text(items, 'project_imp_date')}")
+        lines.append(f"Developers: {', '.join(_owner_labels(items)) or 'N/A'}")
+        lines.append(f"Team Leads: {', '.join(_team_lead_labels(items)) or 'N/A'}")
+        lines.append("")
+        lines.append("Issues")
+        for item in items:
+            lines.append(_issue_email_line(item))
         lines.append("")
         lines.append("Please correct the source data and rerun validation.")
         (folder / f"{safe_name}.txt").write_text("\n".join(lines), encoding="utf-8")
@@ -177,15 +177,56 @@ def _write_email_drafts(folder: Path, issues: list[ValidationIssue]) -> None:
 
 def _cc_emails(
     issues: list[ValidationIssue],
-    to_email: str,
 ) -> list[str]:
+    to_emails = {email.lower() for email in _owner_emails(issues)}
     return sorted(
         {
             issue.cc_email
             for issue in issues
-            if issue.cc_email and issue.cc_email.lower() != to_email.lower()
+            if issue.cc_email and issue.cc_email.lower() not in to_emails
         }
     )
+
+
+def _owner_emails(issues: list[ValidationIssue]) -> list[str]:
+    return sorted({issue.owner_email for issue in issues if issue.owner_email})
+
+
+def _owner_labels(issues: list[ValidationIssue]) -> list[str]:
+    return sorted(
+        {
+            _person_label(issue.owner_id, issue.owner_email)
+            for issue in issues
+            if issue.owner_id or issue.owner_email
+        }
+    )
+
+
+def _team_lead_labels(issues: list[ValidationIssue]) -> list[str]:
+    return sorted(
+        {
+            value
+            for issue in issues
+            for value in (
+                _person_label("", issue.cc_email),
+                issue.effort_team_lead.strip(),
+            )
+            if value
+        }
+    )
+
+
+def _person_label(person_id: str, email: str) -> str:
+    if person_id and email:
+        return f"{person_id} <{email}>"
+    return person_id or email
+
+
+def _safe_filename(value: str) -> str:
+    safe_chars = []
+    for char in value.strip():
+        safe_chars.append(char if char.isalnum() or char in {"-", "_"} else "_")
+    return "".join(safe_chars) or "NO_PROJECT"
 
 
 def _issues_by_project(
@@ -203,11 +244,13 @@ def _project_context_lines(
 ) -> list[str]:
     return [
         f"Project: {project_code}",
+        "",
+        "RSET Data",
         f"Associated Bundle: {_unique_text(issues, 'bundle_id')}",
         f"Bundle Sequence: {_unique_text(issues, 'bundle_sequence')}",
         f"Bundle Qual Date: {_unique_text(issues, 'bundle_qual_date')}",
         f"Bundle Prod Date: {_unique_text(issues, 'bundle_prod_date')}",
-        f"Project Imp Date: {_unique_text(issues, 'project_imp_date')}",
+        f"Effort Team Lead(s): {_unique_text(issues, 'effort_team_lead')}",
         f"Effort Qual Date(s): {_unique_text(issues, 'effort_qual_date')}",
         f"Effort Prod Date(s): {_unique_text(issues, 'effort_prod_date')}",
         "",
@@ -221,11 +264,32 @@ def _issue_email_line(
         f"- [{issue.severity}] {issue.code}:",
         f"Element={issue.element}",
         f"Type={issue.type}",
+        f"Owner={_person_label(issue.owner_id, issue.owner_email) or 'N/A'}",
+        f"TeamLead={_person_label('', issue.cc_email) or issue.effort_team_lead or 'N/A'}",
     ]
     if issue.code == "ELEMENT_IMP_DATE_MISMATCH":
         parts.append(f"Element Imp Date={_format_value(issue.element_imp_date)}")
     parts.append(issue.message)
     return " ".join(parts)
+
+
+def _write_issue_resolution_instructions(folder: Path) -> None:
+    lines = [
+        "Inventory Validation Issue Resolution Instructions",
+        "",
+        "1. Review the project draft for your Project Code.",
+        "2. Use the RSET Data section to confirm the Effort, Bundle, release dates, and RSET TeamLead.",
+        "3. Use the PID Data section to confirm Project and Element values from ProdInventory.",
+        "4. For missing projects, add or correct the Project row before rerunning validation.",
+        "5. For implementation date mismatches, update the Element Imp Date or Project Imp Date so they match.",
+        "6. For missing or invalid Developer/Team Leader values, correct the Element contact fields.",
+        "7. For potential mistypes, review long Project Codes that are not found in RSET Efforts.",
+        "8. After source data is corrected, rerun the validation pipeline and confirm the issue is gone.",
+    ]
+    (folder / "issue_resolution_instructions.txt").write_text(
+        "\n".join(lines),
+        encoding="utf-8",
+    )
 
 
 def _unique_text(
