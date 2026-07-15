@@ -3,8 +3,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
-import pyodbc
-
 from .config import ConnectionSettings
 
 
@@ -38,6 +36,8 @@ class SqlService:
         where_sql: str = "",
         params: tuple[Any, ...] = (),
     ) -> list[dict[str, Any]]:
+        import pyodbc
+
         column_list = ", ".join(quote_name(column) for column in columns)
         query = f"SELECT {column_list} FROM {quote_name(table)}"
         if where_sql:
@@ -48,4 +48,3 @@ class SqlService:
             cursor.execute(query, *params)
             names = [column[0] for column in cursor.description]
             return [dict(zip(names, row)) for row in cursor.fetchall()]
-

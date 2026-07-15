@@ -47,11 +47,21 @@ python -m inventory_validator --config config.json
 ```
 
 Outputs are written to the folder configured by `outputs.output_dir`.
-Email draft templates are opt-in so hourly pipeline runs can skip them. For the
-weekly email prep run, add `--emails`:
+Email actions are opt-in so hourly pipeline runs can skip them. For a weekly
+draft-only review run, add `--draftemails`:
 
 ```powershell
-python -m inventory_validator --config config.json --emails
+python -m inventory_validator --config config.json --draftemails
+```
+
+`--emails` is still accepted as a backward-compatible alias for
+`--draftemails`.
+
+For a weekly SMTP send run, configure `email.from_address`, `email.smtp_host`,
+`email.smtp_port`, and optional SMTP credentials in `config.json`, then use:
+
+```powershell
+python -m inventory_validator --config config.json --sendemails
 ```
 
 ## Test
@@ -127,8 +137,8 @@ sections so users can tell which source owns each value:
   TeamLead, and Effort Qual/Prod dates.
 - `PID Data`: Project Imp Date, Developers, and Team Leads from the
   ProdInventory/PID-side issue ownership.
-- `Issues`: one row per issue showing severity, code, element, type, owner,
-  team lead, and issue message.
+- `Issues`: grouped by owner, with one row per issue showing severity, code,
+  element, type, team lead, and issue message.
 
 When email drafts are generated, the app also writes
 `email_drafts/issue_resolution_instructions.txt` with simple steps for fixing

@@ -1,13 +1,36 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import asdict
+from dataclasses import dataclass
 from datetime import datetime
+from email.message import EmailMessage
 from pathlib import Path
+import smtplib
+from typing import Protocol
 
 import pandas as pd
 
+from .config import EmailSettings
 from .models import ElementRecord, Severity, ValidationIssue
+
+
+class SmtpClient(Protocol):
+    def __enter__(self) -> SmtpClient: ...
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None: ...
+    def starttls(self) -> None: ...
+    def login(self, username: str, password: str) -> None: ...
+    def send_message(self, message: EmailMessage) -> object: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectEmail:
+    project_code: str
+    subject: str
+    to: list[str]
+    cc: list[str]
+    body: str
 
 
 def write_outputs(
@@ -17,6 +40,9 @@ def write_outputs(
     write_csv: bool,
     write_xlsx: bool,
     write_email_drafts: bool,
+    send_emails: bool = False,
+    email_settings: EmailSettings | None = None,
+    smtp_factory: Callable[[str, int], SmtpClient] | None = None,
 ) -> Path:
     run_dir = output_root / datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -95,6 +121,15 @@ def write_outputs(
     if write_email_drafts:
         _write_email_drafts(run_dir / "email_drafts", reportable_issues)
 
+    if send_emails:
+        if email_settings is None:
+            raise ValueError("email_settings is required when send_emails is true.")
+        send_project_emails(
+            reportable_issues,
+            email_settings,
+            smtp_factory=smtp_factory,
+        )
+
     return run_dir
 
 
@@ -151,28 +186,103 @@ def _write_email_drafts(folder: Path, issues: list[ValidationIssue]) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     _write_issue_resolution_instructions(folder)
 
-    for project_code, items in _issues_by_project(issues).items():
-        safe_name = _safe_filename(project_code or "NO_PROJECT")
+    for project_email in _project_emails(issues):
+        safe_name = _safe_filename(project_email.project_code or "NO_PROJECT")
         lines = [
-            f"Subject: Inventory data issues need review - {project_code or 'Unknown Project'}",
-            f"To: {', '.join(_owner_emails(items))}",
-            f"Cc: {', '.join(_cc_emails(items))}",
-            "",
-            "The automated inventory validation found project issues that need review:",
+            f"Subject: {project_email.subject}",
+            f"To: {', '.join(project_email.to)}",
+            f"Cc: {', '.join(project_email.cc)}",
             "",
         ]
-        lines.extend(_project_context_lines(project_code, items))
-        lines.append("PID Data")
-        lines.append(f"Project Imp Date: {_unique_text(items, 'project_imp_date')}")
-        lines.append(f"Developers: {', '.join(_owner_labels(items)) or 'N/A'}")
-        lines.append(f"Team Leads: {', '.join(_team_lead_labels(items)) or 'N/A'}")
-        lines.append("")
-        lines.append("Issues")
-        for item in items:
+        lines.append(project_email.body)
+        (folder / f"{safe_name}.txt").write_text("\n".join(lines), encoding="utf-8")
+
+
+def send_project_emails(
+    issues: list[ValidationIssue],
+    email_settings: EmailSettings,
+    smtp_factory: Callable[[str, int], SmtpClient] | None = None,
+) -> int:
+    if not email_settings.from_address:
+        raise ValueError("email.from_address is required to send emails.")
+    if not email_settings.smtp_host:
+        raise ValueError("email.smtp_host is required to send emails.")
+
+    messages = [
+        _to_email_message(project_email, email_settings.from_address)
+        for project_email in _project_emails(issues)
+        if project_email.to
+    ]
+    if not messages:
+        return 0
+
+    factory = smtp_factory or smtplib.SMTP
+    with factory(email_settings.smtp_host, email_settings.smtp_port) as smtp:
+        if email_settings.smtp_use_tls:
+            smtp.starttls()
+        if email_settings.smtp_username:
+            smtp.login(email_settings.smtp_username, email_settings.smtp_password)
+        for message in messages:
+            smtp.send_message(message)
+
+    return len(messages)
+
+
+def _to_email_message(project_email: ProjectEmail, from_address: str) -> EmailMessage:
+    message = EmailMessage()
+    message["Subject"] = project_email.subject
+    message["From"] = from_address
+    message["To"] = ", ".join(project_email.to)
+    if project_email.cc:
+        message["Cc"] = ", ".join(project_email.cc)
+    message.set_content(project_email.body)
+    return message
+
+
+def _project_emails(issues: list[ValidationIssue]) -> list[ProjectEmail]:
+    emails = []
+    for project_code, items in _issues_by_project(issues).items():
+        emails.append(
+            ProjectEmail(
+                project_code=project_code,
+                subject=(
+                    "Inventory data issues need review - "
+                    f"{project_code or 'Unknown Project'}"
+                ),
+                to=_owner_emails(items),
+                cc=_cc_emails(items),
+                body="\n".join(_project_email_body_lines(project_code, items)),
+            )
+        )
+    return emails
+
+
+def _project_email_body_lines(
+    project_code: str,
+    items: list[ValidationIssue],
+) -> list[str]:
+    lines = [
+        "The automated inventory validation found project issues that need review:",
+        "",
+    ]
+    lines.extend(_project_context_lines(project_code, items))
+    lines.append("PID Data")
+    lines.append(f"Project Imp Date: {_unique_text(items, 'project_imp_date')}")
+    lines.append(f"Developers: {', '.join(_owner_labels(items)) or 'N/A'}")
+    lines.append(f"Team Leads: {', '.join(_team_lead_labels(items)) or 'N/A'}")
+    lines.append("")
+    lines.append("Issues")
+    for owner, owner_items in _issues_by_owner(items).items():
+        lines.append(f"Owner: {owner}")
+        for item in owner_items:
             lines.append(_issue_email_line(item))
         lines.append("")
-        lines.append("Please correct the source data and rerun validation.")
-        (folder / f"{safe_name}.txt").write_text("\n".join(lines), encoding="utf-8")
+    lines.append("")
+    lines.append("Resolution Instructions")
+    lines.extend(_issue_resolution_instruction_lines())
+    lines.append("")
+    lines.append("Please correct the source data and rerun validation.")
+    return lines
 
 
 def _cc_emails(
@@ -238,6 +348,17 @@ def _issues_by_project(
     return dict(sorted(grouped.items()))
 
 
+def _issues_by_owner(
+    issues: list[ValidationIssue],
+) -> dict[str, list[ValidationIssue]]:
+    grouped: dict[str, list[ValidationIssue]] = defaultdict(list)
+    for issue in issues:
+        grouped[_person_label(issue.owner_id, issue.owner_email) or "Unassigned"].append(
+            issue,
+        )
+    return dict(sorted(grouped.items()))
+
+
 def _project_context_lines(
     project_code: str,
     issues: list[ValidationIssue],
@@ -274,9 +395,16 @@ def _issue_email_line(
 
 
 def _write_issue_resolution_instructions(folder: Path) -> None:
+    lines = ["Inventory Validation Issue Resolution Instructions", ""]
+    lines.extend(_issue_resolution_instruction_lines())
+    (folder / "issue_resolution_instructions.txt").write_text(
+        "\n".join(lines),
+        encoding="utf-8",
+    )
+
+
+def _issue_resolution_instruction_lines() -> list[str]:
     lines = [
-        "Inventory Validation Issue Resolution Instructions",
-        "",
         "1. Review the project draft for your Project Code.",
         "2. Use the RSET Data section to confirm the Effort, Bundle, release dates, and RSET TeamLead.",
         "3. Use the PID Data section to confirm Project and Element values from ProdInventory.",
@@ -286,10 +414,7 @@ def _write_issue_resolution_instructions(folder: Path) -> None:
         "7. For potential mistypes, review long Project Codes that are not found in RSET Efforts.",
         "8. After source data is corrected, rerun the validation pipeline and confirm the issue is gone.",
     ]
-    (folder / "issue_resolution_instructions.txt").write_text(
-        "\n".join(lines),
-        encoding="utf-8",
-    )
+    return lines
 
 
 def _unique_text(

@@ -138,3 +138,4 @@ class ValidationIssue:
     bundle_prod_date: date | None = None
     effort_qual_date: date | None = None
     effort_prod_date: date | None = None
+    effort_team_lead: str = ""

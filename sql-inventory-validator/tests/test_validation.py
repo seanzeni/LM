@@ -98,6 +98,30 @@ class ValidationTests(unittest.TestCase):
         self.assertFalse(any(issue.code == "EFFORT_NOT_ASSIGNED" for issue in result.issues))
         self.assertEqual(result.good_elements, [])
 
+    def test_missing_project_keeps_existing_rset_context(self) -> None:
+        data = _input([_element(project_code="ABC1234")])
+        missing_project_data = ValidationInput(
+            employees=data.employees,
+            projects=[],
+            elements=data.elements,
+            efforts=data.efforts,
+            bundles=data.bundles,
+            regions=data.regions,
+            misc_regions=data.misc_regions,
+            date_window=data.date_window,
+        )
+
+        result = validate_inventory(missing_project_data, "domain.com")
+
+        missing_issue = next(
+            issue for issue in result.issues if issue.code == "ELEMENT_PROJECT_NOT_FOUND"
+        )
+        self.assertEqual(missing_issue.bundle_id, "B1")
+        self.assertEqual(missing_issue.bundle_sequence, 10)
+        self.assertEqual(missing_issue.effort_prod_date, date(2026, 7, 20))
+        self.assertEqual(missing_issue.effort_team_lead, "TL01")
+        self.assertEqual(result.good_elements, [])
+
     def test_long_missing_project_code_flags_potential_mistype(self) -> None:
         result = validate_inventory(
             _input([_element(project_code="TOO-LONG-PROJECT")]),
@@ -299,6 +323,7 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(element_issue.bundle_id, "B1")
         self.assertEqual(element_issue.bundle_sequence, 10)
         self.assertEqual(element_issue.effort_prod_date, date(2026, 7, 20))
+        self.assertEqual(element_issue.effort_team_lead, "TL01")
 
     def test_team_leader_resolution_uses_only_tl_position(self) -> None:
         data = _input([_element(team_leader="Person")])

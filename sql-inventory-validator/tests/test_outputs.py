@@ -7,8 +7,9 @@ import unittest
 
 import pandas as pd
 
+from inventory_validator.config import EmailSettings
 from inventory_validator.models import ElementRecord, Severity, ValidationIssue
-from inventory_validator.outputs import write_outputs
+from inventory_validator.outputs import send_project_emails, write_outputs
 
 
 def _element() -> ElementRecord:
@@ -43,6 +44,33 @@ def _element() -> ElementRecord:
         misc_lookup_source="region_prefix",
         misc_lookup_detail="Bundle.Sequence/TestEnvironment=1057/42",
     )
+
+
+class FakeSmtp:
+    instances: list["FakeSmtp"] = []
+
+    def __init__(self, host: str, port: int) -> None:
+        self.host = host
+        self.port = port
+        self.started_tls = False
+        self.login_args: tuple[str, str] | None = None
+        self.messages = []
+        FakeSmtp.instances.append(self)
+
+    def __enter__(self) -> "FakeSmtp":
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        return None
+
+    def starttls(self) -> None:
+        self.started_tls = True
+
+    def login(self, username: str, password: str) -> None:
+        self.login_args = (username, password)
+
+    def send_message(self, message: object) -> None:
+        self.messages.append(message)
 
 
 class OutputTests(unittest.TestCase):
@@ -122,6 +150,8 @@ class OutputTests(unittest.TestCase):
             self.assertIn("PID Data", draft)
             self.assertIn("Project Imp Date: 2026-07-20", draft)
             self.assertIn("Effort Team Lead(s): TL99", draft)
+            self.assertIn("Owner: DEV1 <DEV1@domain.com>", draft)
+            self.assertIn("Owner: DEV2 <DEV2@domain.com>", draft)
             self.assertIn("Owner=DEV1 <DEV1@domain.com>", draft)
             self.assertIn("TeamLead=TL01@domain.com", draft)
             self.assertIn("Element Imp Date=2026-07-21", draft)
@@ -210,6 +240,51 @@ class OutputTests(unittest.TestCase):
 
             self.assertTrue((run_dir / "consolidated_inventory_source.csv").exists())
             self.assertFalse((run_dir / "validation_issues.csv").exists())
+
+    def test_send_project_emails_uses_smtp_settings(self) -> None:
+        FakeSmtp.instances.clear()
+
+        sent_count = send_project_emails(
+            [
+                ValidationIssue(
+                    severity=Severity.WARNING,
+                    code="POTENTIAL_MISTYPE",
+                    message="Review project code.",
+                    project_code="ABC1234",
+                    element="ELM0001",
+                    type="BCOB",
+                    owner_id="DEV1",
+                    owner_email="DEV1@domain.com",
+                    cc_email="TL01@domain.com",
+                ),
+            ],
+            EmailSettings(
+                domain="domain.com",
+                from_address="inventory-validation@domain.com",
+                smtp_host="smtp.domain.com",
+                smtp_port=2525,
+                smtp_username="smtp-user",
+                smtp_password="smtp-pass",
+                smtp_use_tls=True,
+            ),
+            smtp_factory=FakeSmtp,
+        )
+
+        self.assertEqual(sent_count, 1)
+        smtp = FakeSmtp.instances[0]
+        self.assertEqual(smtp.host, "smtp.domain.com")
+        self.assertEqual(smtp.port, 2525)
+        self.assertTrue(smtp.started_tls)
+        self.assertEqual(smtp.login_args, ("smtp-user", "smtp-pass"))
+        message = smtp.messages[0]
+        self.assertEqual(message["From"], "inventory-validation@domain.com")
+        self.assertEqual(message["To"], "DEV1@domain.com")
+        self.assertEqual(message["Cc"], "TL01@domain.com")
+        self.assertEqual(
+            message["Subject"],
+            "Inventory data issues need review - ABC1234",
+        )
+        self.assertIn("Resolution Instructions", message.get_content())
 
 
 if __name__ == "__main__":

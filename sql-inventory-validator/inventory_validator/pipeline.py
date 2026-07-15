@@ -22,7 +22,11 @@ class PipelineResult:
     output_dir: Path
 
 
-def run_pipeline(config: AppConfig) -> PipelineResult:
+def run_pipeline(
+    config: AppConfig,
+    write_email_drafts: bool | None = None,
+    send_emails: bool = False,
+) -> PipelineResult:
     repository = InventoryRepository(config)
     today = date.fromisoformat(config.validation.today) if config.validation.today else date.today()
     window = active_date_window(today)
@@ -56,7 +60,13 @@ def run_pipeline(config: AppConfig) -> PipelineResult:
         good_elements=validation.good_elements,
         write_csv=config.outputs.write_csv,
         write_xlsx=config.outputs.write_xlsx,
-        write_email_drafts=config.outputs.write_email_drafts,
+        write_email_drafts=(
+            config.outputs.write_email_drafts
+            if write_email_drafts is None
+            else write_email_drafts
+        ),
+        send_emails=send_emails,
+        email_settings=config.email,
     )
 
     error_count = sum(1 for issue in validation.issues if issue.severity == Severity.ERROR)

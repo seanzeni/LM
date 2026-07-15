@@ -188,6 +188,11 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                         if include_effort_context and effort
                         else None
                     ),
+                    effort_team_lead=(
+                        effort.team_lead
+                        if include_effort_context and effort
+                        else ""
+                    ),
                 )
             )
             if severity == Severity.ERROR or code in {
@@ -203,6 +208,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 "ELEMENT_PROJECT_NOT_FOUND",
                 "Element Project Code does not have a corresponding Project.",
                 include_assignment_context=False,
+                include_existing_effort_context=True,
             )
             if len(element.project_code.strip()) > 8 and element.project_key not in efforts_by_project:
                 add_issue(
