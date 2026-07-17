@@ -19,13 +19,18 @@
   },
   "email": {
     "domain": "domain.com",
-    "from_address": "inventory-validation@domain.com"
+    "from_address": "inventory-validation@domain.com",
+    "smtp_host": "smtp.domain.com",
+    "smtp_port": 587,
+    "smtp_username": "",
+    "smtp_password": "",
+    "smtp_use_tls": true
   },
   "outputs": {
     "output_dir": "outputs",
     "write_xlsx": true,
     "write_csv": true,
-    "write_email_drafts": true
+    "write_email_drafts": false
   },
   "validation": {
     "today": null,
@@ -38,6 +43,6 @@
     "efforts": "Efforts",
     "bundles": "Bundles",
     "regions": "Regions",
-    "misc_system_region": "MiscSystemRegion"
+    "misc_environment_system": "MiscEnvironmentSystem"
   }
 }

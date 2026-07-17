@@ -430,6 +430,8 @@ def _with_output_enrichment(
         misc_region=resolved_region,
         misc_lookup_source=lookup_source,
         misc_lookup_detail=lookup_detail,
+        bundle_id=bundle.id if bundle else "",
+        bundle_sequence=bundle.sequence if bundle else None,
     )
 
 

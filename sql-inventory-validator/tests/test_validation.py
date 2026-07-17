@@ -69,6 +69,8 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(result.good_elements[0].misc_system, "SYS1")
         self.assertEqual(result.good_elements[0].misc_region, "RGN2")
         self.assertEqual(result.good_elements[0].misc_lookup_source, "region_prefix")
+        self.assertEqual(result.good_elements[0].bundle_id, "B1")
+        self.assertEqual(result.good_elements[0].bundle_sequence, 10)
 
     def test_good_output_uses_misc_region_match_for_system_and_merge_region(self) -> None:
         data = _input([_element(subsystem="NOT_THE_SYSTEM")])

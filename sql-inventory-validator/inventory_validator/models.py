@@ -70,6 +70,8 @@ class ElementRecord:
     misc_region: str = ""
     misc_lookup_source: str = ""
     misc_lookup_detail: str = ""
+    bundle_id: str = ""
+    bundle_sequence: int | None = None
     source_row: dict[str, Any] = field(default_factory=dict)
 
     @property

@@ -43,6 +43,8 @@ def _element() -> ElementRecord:
         misc_region="Region Proper",
         misc_lookup_source="region_prefix",
         misc_lookup_detail="Bundle.Sequence/TestEnvironment=1057/42",
+        bundle_id="BUNDLE-1057",
+        bundle_sequence=1057,
     )
 
 
@@ -139,6 +141,8 @@ class OutputTests(unittest.TestCase):
             self.assertEqual(good_rows["Merge Region"][0], "Region Proper")
             self.assertEqual(good_rows["System"][0], "System Proper")
             self.assertEqual(good_rows["Region"][0], "Region Proper")
+            self.assertEqual(good_rows["Bundle Id"][0], "BUNDLE-1057")
+            self.assertEqual(good_rows["Bundle Sequence"][0], 1057)
             self.assertEqual(good_rows["Misc Lookup Source"][0], "region_prefix")
             self.assertIn("TestEnvironment=1057/42", good_rows["Misc Lookup Detail"][0])
             self.assertIn("Subject: Inventory data issues need review - ABC1234", draft)

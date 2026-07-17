@@ -148,6 +148,7 @@ The clean CSV output is always written as `consolidated_inventory_source.csv`.
 It includes:
 
 - `Merge Region` from `MiscEnvironmentSystem.Region`.
+- Associated `Bundle Id` and `Bundle Sequence`.
 - Canonical `System` from MiscEnvironmentSystem.
 - Canonical `Region` from MiscEnvironmentSystem.
 - `Misc Lookup Source` and `Misc Lookup Detail` trace columns showing whether

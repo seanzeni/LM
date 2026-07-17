@@ -140,6 +140,8 @@ def _element_row(
     return {
         "Project": element.project_code,
         "CCID": element.project_code.strip()[:6],
+        "Bundle Id": element.bundle_id,
+        "Bundle Sequence": element.bundle_sequence,
         "Merge Region": element.project_merge_region,
         "Element": element.element,
         "Type": element.type,
