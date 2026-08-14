@@ -364,6 +364,7 @@ class ValidationTests(unittest.TestCase):
             issue for issue in result.issues if issue.code == "ELEMENT_NAME_TOO_LONG"
         )
         self.assertEqual(element_issue.owner_email, "DEV1@domain.com")
+        self.assertEqual(element_issue.element_developer_email, "DEV1@domain.com")
         self.assertEqual(element_issue.cc_email, "TL01@domain.com")
         self.assertEqual(element_issue.bundle_id, "B1")
         self.assertEqual(element_issue.bundle_sequence, 10)

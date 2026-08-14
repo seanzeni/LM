@@ -16,7 +16,7 @@ from .config import EmailSettings
 from .models import ElementRecord, Severity, ValidationIssue
 
 
-DEFAULT_CC_EMAILS = ("rs.lm@domain.com",)
+DEFAULT_CC_LOCAL_PARTS = ("rs.lm",)
 OUTLOOK_RECIPIENT_SEPARATOR = "; "
 
 
@@ -60,7 +60,8 @@ def write_outputs(
     good_df = pd.DataFrame(
         [_element_row(element, info_notes) for element in good_elements],
     )
-    email_df = pd.DataFrame(_email_rows(reportable_issues))
+    email_domain = _email_domain(email_settings)
+    email_df = pd.DataFrame(_email_rows(reportable_issues, email_domain))
     missing_projects_summary_df = pd.DataFrame(
         _missing_projects_summary(reportable_issues),
     )
@@ -123,7 +124,7 @@ def write_outputs(
             email_df.to_excel(writer, sheet_name="Email Recipients", index=False)
 
     if write_email_drafts:
-        _write_email_drafts(run_dir / "email_drafts", reportable_issues)
+        _write_email_drafts(run_dir / "email_drafts", reportable_issues, email_domain)
 
     if send_emails:
         if email_settings is None:
@@ -170,14 +171,17 @@ def _element_row(
     }
 
 
-def _email_rows(issues: list[ValidationIssue]) -> list[dict[str, object]]:
+def _email_rows(
+    issues: list[ValidationIssue],
+    email_domain: str,
+) -> list[dict[str, object]]:
     rows = []
     for project_code, items in _issues_by_project(issues).items():
         rows.append(
             {
                 "project_code": project_code,
                 "to": ", ".join(_owner_emails(items)),
-                "cc": ", ".join(_cc_emails(items)),
+                "cc": ", ".join(_cc_emails(items, email_domain)),
                 "blocking_errors": sum(1 for item in items if item.severity == Severity.ERROR),
                 "warnings": sum(1 for item in items if item.severity == Severity.WARNING),
                 "issue_count": len(items),
@@ -188,11 +192,15 @@ def _email_rows(issues: list[ValidationIssue]) -> list[dict[str, object]]:
     return rows
 
 
-def _write_email_drafts(folder: Path, issues: list[ValidationIssue]) -> None:
+def _write_email_drafts(
+    folder: Path,
+    issues: list[ValidationIssue],
+    email_domain: str,
+) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     _write_issue_resolution_instructions(folder)
 
-    for project_email in _project_emails(issues):
+    for project_email in _project_emails(issues, email_domain):
         safe_name = _safe_filename(project_email.project_code or "NO_PROJECT")
         lines = [
             f"Subject: {project_email.subject}",
@@ -216,7 +224,7 @@ def send_project_emails(
 
     messages = [
         _to_email_message(project_email, email_settings.from_address)
-        for project_email in _project_emails(issues)
+        for project_email in _project_emails(issues, email_settings.domain)
         if project_email.to
     ]
     if not messages:
@@ -245,7 +253,10 @@ def _to_email_message(project_email: ProjectEmail, from_address: str) -> EmailMe
     return message
 
 
-def _project_emails(issues: list[ValidationIssue]) -> list[ProjectEmail]:
+def _project_emails(
+    issues: list[ValidationIssue],
+    email_domain: str,
+) -> list[ProjectEmail]:
     emails = []
     for project_code, items in _issues_by_project(issues).items():
         emails.append(
@@ -256,7 +267,7 @@ def _project_emails(issues: list[ValidationIssue]) -> list[ProjectEmail]:
                     f"{project_code or 'Unknown Project'}"
                 ),
                 to=_owner_emails(items),
-                cc=_cc_emails(items),
+                cc=_cc_emails(items, email_domain),
                 body="\n".join(_project_email_body_lines(project_code, items)),
             )
         )
@@ -275,13 +286,16 @@ def _project_email_body_lines(
     lines.append("PID Data")
     lines.append(f"Project Imp Date: {_unique_text(items, 'project_imp_date')}")
     lines.append(f"Developers: {', '.join(_owner_labels(items)) or 'N/A'}")
+    lines.append(
+        f"Element Developer Emails: {', '.join(_element_developer_emails(items)) or 'N/A'}"
+    )
     lines.append(f"Team Leads: {', '.join(_team_lead_labels(items)) or 'N/A'}")
     lines.append("")
     lines.append("Issues")
     for owner, owner_items in _issues_by_owner(items).items():
         lines.append(f"Owner: {owner}")
         for item in owner_items:
-            lines.append(_issue_email_line(item))
+            lines.extend(_issue_email_lines(item))
         lines.append("")
     lines.append("")
     lines.append("Resolution Instructions")
@@ -293,6 +307,7 @@ def _project_email_body_lines(
 
 def _cc_emails(
     issues: list[ValidationIssue],
+    email_domain: str,
 ) -> list[str]:
     to_emails = {email.lower() for email in _owner_emails(issues)}
     return sorted(
@@ -300,15 +315,33 @@ def _cc_emails(
             email
             for email in [
                 *(issue.cc_email for issue in issues if issue.cc_email),
-                *DEFAULT_CC_EMAILS,
+                *_default_cc_emails(email_domain),
             ]
             if email.lower() not in to_emails
         }
     )
 
 
+def _default_cc_emails(email_domain: str) -> list[str]:
+    clean_domain = email_domain.lstrip("@") or "domain.com"
+    return [f"{local_part}@{clean_domain}" for local_part in DEFAULT_CC_LOCAL_PARTS]
+
+
+def _email_domain(email_settings: EmailSettings | None) -> str:
+    if email_settings and email_settings.domain:
+        return email_settings.domain
+    return "domain.com"
+
+
 def _owner_emails(issues: list[ValidationIssue]) -> list[str]:
-    return sorted({issue.owner_email for issue in issues if issue.owner_email})
+    return sorted(
+        {
+            email
+            for issue in issues
+            for email in (issue.owner_email, issue.element_developer_email)
+            if email
+        }
+    )
 
 
 def _owner_labels(issues: list[ValidationIssue]) -> list[str]:
@@ -318,6 +351,12 @@ def _owner_labels(issues: list[ValidationIssue]) -> list[str]:
             for issue in issues
             if issue.owner_id or issue.owner_email
         }
+    )
+
+
+def _element_developer_emails(issues: list[ValidationIssue]) -> list[str]:
+    return sorted(
+        {issue.element_developer_email for issue in issues if issue.element_developer_email}
     )
 
 
@@ -387,20 +426,52 @@ def _project_context_lines(
     ]
 
 
-def _issue_email_line(
+def _issue_email_lines(
     issue: ValidationIssue,
-) -> str:
+) -> list[str]:
     parts = [
         f"- [{issue.severity}] {issue.code}:",
-        f"Element={issue.element}",
-        f"Type={issue.type}",
+        f"Element={_display_value(issue.element)}",
+        f"Type={_display_value(issue.type)}",
         f"Owner={_person_label(issue.owner_id, issue.owner_email) or 'N/A'}",
         f"TeamLead={_person_label('', issue.cc_email) or issue.effort_team_lead or 'N/A'}",
     ]
     if issue.code == "ELEMENT_IMP_DATE_MISMATCH":
-        parts.append(f"Element Imp Date={_format_value(issue.element_imp_date)}")
+        parts.append(f"Element Imp Date={_display_value(issue.element_imp_date)}")
     parts.append(issue.message)
-    return " ".join(parts)
+    return [
+        " ".join(parts),
+        f"  Element Data: {_element_issue_data_text(issue)}",
+    ]
+
+
+def _element_issue_data_text(issue: ValidationIssue) -> str:
+    values = {
+        "Project": issue.project_code,
+        "Trans ID": issue.trans_id,
+        "Element": issue.element,
+        "Type": issue.type,
+        "Developer": issue.element_developer,
+        "Team Leader": issue.element_team_leader,
+        "Package": issue.ndvr_package_name,
+        "Subsystem": issue.subsystem,
+        "Application": issue.application,
+        "Area": issue.application_area,
+        "Element Imp Date": issue.element_imp_date,
+        "ImportID": issue.import_id,
+        "ImportDate": issue.import_date,
+        "Comments": issue.comments,
+        "MajorFunctions": issue.major_functions,
+        "MinorFunctions": issue.minor_functions,
+    }
+    return "; ".join(
+        f"{name}={_display_value(value)}" for name, value in values.items()
+    )
+
+
+def _display_value(value: object) -> str:
+    formatted = _format_value(value).strip()
+    return formatted if formatted else "N/A"
 
 
 def _write_issue_resolution_instructions(folder: Path) -> None:
@@ -500,10 +571,22 @@ def _issue_elements(
     return [
         {
             "project_code": issue.project_code,
+            "trans_id": issue.trans_id,
             "element": issue.element,
             "type": issue.type,
+            "developer": issue.element_developer,
+            "team_leader": issue.element_team_leader,
+            "package": issue.ndvr_package_name,
+            "subsystem": issue.subsystem,
+            "application": issue.application,
+            "application_area": issue.application_area,
             "project_imp_date": issue.project_imp_date,
             "element_imp_date": issue.element_imp_date,
+            "import_id": issue.import_id,
+            "import_date": issue.import_date,
+            "comments": issue.comments,
+            "major_functions": issue.major_functions,
+            "minor_functions": issue.minor_functions,
             "owner_id": issue.owner_id,
             "owner_email": issue.owner_email,
             "message": issue.message,

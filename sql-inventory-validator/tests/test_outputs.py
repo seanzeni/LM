@@ -112,10 +112,22 @@ class OutputTests(unittest.TestCase):
                         project_code="ABC1234",
                         element="ELM0002",
                         type="BCOB",
+                        trans_id="TRN2",
+                        element_developer="DEV3",
+                        element_team_leader="Leader",
+                        ndvr_package_name="PKG2",
+                        subsystem="",
+                        application="APP2",
+                        application_area="AREA2",
+                        import_id="IMP2",
+                        comments="Needs review",
+                        major_functions="Major",
+                        minor_functions="Minor",
                         project_imp_date=date(2026, 7, 20),
                         element_imp_date=date(2026, 7, 21),
                         owner_id="DEV2",
                         owner_email="DEV2@domain.com",
+                        element_developer_email="DEV3@domain.com",
                         cc_email="TL01@domain.com",
                     ),
                 ],
@@ -123,6 +135,7 @@ class OutputTests(unittest.TestCase):
                 write_csv=True,
                 write_xlsx=False,
                 write_email_drafts=True,
+                email_settings=EmailSettings(domain="custom.example"),
             )
 
             issues = pd.read_csv(run_dir / "validation_issues.csv")
@@ -146,19 +159,24 @@ class OutputTests(unittest.TestCase):
             self.assertEqual(good_rows["Misc Lookup Source"][0], "region_prefix")
             self.assertIn("TestEnvironment=1057/42", good_rows["Misc Lookup Detail"][0])
             self.assertIn("Subject: Inventory data issues need review - ABC1234", draft)
-            self.assertIn("To: DEV1@domain.com; DEV2@domain.com", draft)
-            self.assertIn("Cc: TL01@domain.com; rs.lm@domain.com", draft)
+            self.assertIn("To: DEV1@domain.com; DEV2@domain.com; DEV3@domain.com", draft)
+            self.assertIn("Cc: TL01@domain.com; rs.lm@custom.example", draft)
             self.assertIn("RSET Data", draft)
             self.assertIn("Associated Bundle: DEFAULT-JULY", draft)
             self.assertIn("Bundle Prod Date: 2026-07-31", draft)
             self.assertIn("PID Data", draft)
             self.assertIn("Project Imp Date: 2026-07-20", draft)
+            self.assertIn("Element Developer Emails: DEV3@domain.com", draft)
             self.assertIn("Effort Team Lead(s): TL99", draft)
             self.assertIn("Owner: DEV1 <DEV1@domain.com>", draft)
             self.assertIn("Owner: DEV2 <DEV2@domain.com>", draft)
             self.assertIn("Owner=DEV1 <DEV1@domain.com>", draft)
             self.assertIn("TeamLead=TL01@domain.com", draft)
             self.assertIn("Element Imp Date=2026-07-21", draft)
+            self.assertIn("Element Data: Project=ABC1234; Trans ID=TRN2", draft)
+            self.assertIn("Developer=DEV3; Team Leader=Leader; Package=PKG2", draft)
+            self.assertIn("Subsystem=N/A; Application=APP2; Area=AREA2", draft)
+            self.assertIn("Comments=Needs review; MajorFunctions=Major; MinorFunctions=Minor", draft)
             self.assertIn("Review the project draft for your Project Code.", instructions)
 
     def test_date_mismatch_email_does_not_show_assignment_context(self) -> None:

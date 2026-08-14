@@ -64,7 +64,7 @@ To open those draft files as editable Outlook emails for sender review, run:
 ```
 
 Draft `To` and `Cc` lines use semicolon-separated recipients for Outlook, and
-each project draft includes `rs.lm@domain.com` on `Cc` by default.
+each project draft includes `rs.lm@{email.domain}` on `Cc` by default.
 
 Use `-SaveOnly` to save the messages to Outlook Drafts instead of opening each
 message window:
@@ -153,7 +153,8 @@ Team Leader value with that employee's four-character Developer ID and uses
 that ID for issue ownership when needed. If no TL match is found, the row or
 project must be corrected before it can appear in good output.
 Project email drafts put all issue owners in `To` and resolved Team Leader
-emails in `Cc`.
+emails in `Cc`. Element Developer emails are also added to `To` so developers
+are aware of issues on their items even when ownership routes elsewhere.
 
 Email drafts are generated one file per Project Code and include separate
 sections so users can tell which source owns each value:
@@ -163,7 +164,8 @@ sections so users can tell which source owns each value:
 - `PID Data`: Project Imp Date, Developers, and Team Leads from the
   ProdInventory/PID-side issue ownership.
 - `Issues`: grouped by owner, with one row per issue showing severity, code,
-  element, type, team lead, and issue message.
+  element, type, team lead, issue message, and an `Element Data` line with the
+  affected Element row fields. Empty values are shown as `N/A`.
 
 When email drafts are generated, the app also writes
 `email_drafts/issue_resolution_instructions.txt` with simple steps for fixing

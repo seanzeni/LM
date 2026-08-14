@@ -139,6 +139,11 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             tl_employees_by_last_name,
             email_domain,
         )
+        element_developer_email = (
+            f"{element.developer.strip()}@{email_domain}"
+            if len(element.developer.strip()) == 4
+            else ""
+        )
         effort = efforts_by_project.get(element.project_key)
         associated_bundle = _associated_bundle_for_project(
             effort,
@@ -167,10 +172,23 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                     project_code=element.project_code,
                     element=element.element,
                     type=element.type,
+                    trans_id=element.trans_id,
+                    element_developer=element.developer,
+                    element_team_leader=element.team_leader,
+                    ndvr_package_name=element.ndvr_package_name,
+                    subsystem=element.subsystem,
+                    application=element.application,
+                    application_area=element.application_area,
+                    import_id=element.import_id,
+                    import_date=element.import_date,
+                    comments=element.comments,
+                    major_functions=element.major_functions,
+                    minor_functions=element.minor_functions,
                     project_imp_date=project.imp_date if project else None,
                     element_imp_date=element.imp_date,
                     owner_id=owner_id,
                     owner_email=owner_email,
+                    element_developer_email=element_developer_email,
                     cc_email=team_leader_email,
                     bundle_id=(
                         associated_bundle.id
