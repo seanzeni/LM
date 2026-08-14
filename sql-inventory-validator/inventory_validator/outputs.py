@@ -16,6 +16,10 @@ from .config import EmailSettings
 from .models import ElementRecord, Severity, ValidationIssue
 
 
+DEFAULT_CC_EMAILS = ("rs.lm@domain.com",)
+OUTLOOK_RECIPIENT_SEPARATOR = "; "
+
+
 class SmtpClient(Protocol):
     def __enter__(self) -> SmtpClient: ...
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None: ...
@@ -192,8 +196,8 @@ def _write_email_drafts(folder: Path, issues: list[ValidationIssue]) -> None:
         safe_name = _safe_filename(project_email.project_code or "NO_PROJECT")
         lines = [
             f"Subject: {project_email.subject}",
-            f"To: {', '.join(project_email.to)}",
-            f"Cc: {', '.join(project_email.cc)}",
+            f"To: {OUTLOOK_RECIPIENT_SEPARATOR.join(project_email.to)}",
+            f"Cc: {OUTLOOK_RECIPIENT_SEPARATOR.join(project_email.cc)}",
             "",
         ]
         lines.append(project_email.body)
@@ -293,9 +297,12 @@ def _cc_emails(
     to_emails = {email.lower() for email in _owner_emails(issues)}
     return sorted(
         {
-            issue.cc_email
-            for issue in issues
-            if issue.cc_email and issue.cc_email.lower() not in to_emails
+            email
+            for email in [
+                *(issue.cc_email for issue in issues if issue.cc_email),
+                *DEFAULT_CC_EMAILS,
+            ]
+            if email.lower() not in to_emails
         }
     )
 
@@ -413,8 +420,9 @@ def _issue_resolution_instruction_lines() -> list[str]:
         "4. For missing projects, add or correct the Project row before rerunning validation.",
         "5. For implementation date mismatches, update the Element Imp Date or Project Imp Date so they match.",
         "6. For missing or invalid Developer/Team Leader values, correct the Element contact fields.",
-        "7. For potential mistypes, review long Project Codes that are not found in RSET Efforts.",
-        "8. After source data is corrected, rerun the validation pipeline and confirm the issue is gone.",
+        "7. For cannot find TL issues, make sure the Team Leader value matches an Employees Developer ID or Last Name where Position contains TL.",
+        "8. For potential mistypes, review long Project Codes that are not found in RSET Efforts.",
+        "9. After source data is corrected, rerun the validation pipeline and confirm the issue is gone.",
     ]
     return lines
 

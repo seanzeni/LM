@@ -146,8 +146,8 @@ class OutputTests(unittest.TestCase):
             self.assertEqual(good_rows["Misc Lookup Source"][0], "region_prefix")
             self.assertIn("TestEnvironment=1057/42", good_rows["Misc Lookup Detail"][0])
             self.assertIn("Subject: Inventory data issues need review - ABC1234", draft)
-            self.assertIn("To: DEV1@domain.com, DEV2@domain.com", draft)
-            self.assertIn("Cc: TL01@domain.com", draft)
+            self.assertIn("To: DEV1@domain.com; DEV2@domain.com", draft)
+            self.assertIn("Cc: TL01@domain.com; rs.lm@domain.com", draft)
             self.assertIn("RSET Data", draft)
             self.assertIn("Associated Bundle: DEFAULT-JULY", draft)
             self.assertIn("Bundle Prod Date: 2026-07-31", draft)
@@ -283,7 +283,7 @@ class OutputTests(unittest.TestCase):
         message = smtp.messages[0]
         self.assertEqual(message["From"], "inventory-validation@domain.com")
         self.assertEqual(message["To"], "DEV1@domain.com")
-        self.assertEqual(message["Cc"], "TL01@domain.com")
+        self.assertEqual(message["Cc"], "TL01@domain.com, rs.lm@domain.com")
         self.assertEqual(
             message["Subject"],
             "Inventory data issues need review - ABC1234",

@@ -87,17 +87,30 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
 
     issues: list[ValidationIssue] = []
     bad_element_ids: set[int] = set()
+    bad_project_team_leader_keys: set[str] = set()
 
     for project in data.projects:
         if not data.date_window.contains(project.imp_date):
             continue
 
         if not project.team_leader.strip():
+            bad_project_team_leader_keys.add(key(project.project_code))
             issues.append(
                 ValidationIssue(
                     severity=Severity.WARNING,
                     code="PROJECT_TEAM_LEADER_MISSING",
                     message="Project Team Leader is empty.",
+                    project_code=project.project_code,
+                    project_imp_date=project.imp_date,
+                )
+            )
+        elif not _tl_employee(project.team_leader, tl_employees_by_last_name):
+            bad_project_team_leader_keys.add(key(project.project_code))
+            issues.append(
+                ValidationIssue(
+                    severity=Severity.WARNING,
+                    code="PROJECT_TEAM_LEADER_NOT_FOUND",
+                    message="cannot find TL for Project Team Leader.",
                     project_code=project.project_code,
                     project_imp_date=project.imp_date,
                 )
@@ -199,6 +212,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 "ELEMENT_DEVELOPER_MISSING",
                 "ELEMENT_DEVELOPER_INVALID",
                 "ELEMENT_TEAM_LEADER_MISSING",
+                "ELEMENT_TEAM_LEADER_NOT_FOUND",
             }:
                 bad_element_ids.add(id(element))
 
@@ -226,6 +240,9 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 include_assignment_context=False,
                 include_existing_effort_context=True,
             )
+            continue
+        elif element.project_key in bad_project_team_leader_keys:
+            bad_element_ids.add(id(element))
             continue
 
         if len(element.element.strip()) > 8:
@@ -258,6 +275,14 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 Severity.WARNING,
                 "ELEMENT_TEAM_LEADER_MISSING",
                 "Element Team Leader is empty.",
+                include_assignment_context=False,
+            )
+            missing_required_contact = True
+        elif not _tl_employee(element.team_leader, tl_employees_by_last_name):
+            add_issue(
+                Severity.WARNING,
+                "ELEMENT_TEAM_LEADER_NOT_FOUND",
+                "cannot find TL for Element Team Leader.",
                 include_assignment_context=False,
             )
             missing_required_contact = True
@@ -330,6 +355,8 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
     for element in data.elements:
         if id(element) in bad_element_ids:
             continue
+        if element.project_key in bad_project_team_leader_keys:
+            continue
         if not _is_in_scope(element, projects_by_code, data.date_window):
             continue
 
@@ -357,11 +384,22 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
 def _tl_employees_by_last_name(
     employees: list[Employee],
 ) -> dict[str, Employee]:
-    return {
-        key(employee.last_name): employee
-        for employee in employees
-        if employee.last_name and key(employee.position) == "TL"
-    }
+    lookup: dict[str, Employee] = {}
+    for employee in employees:
+        if "TL" not in key(employee.position):
+            continue
+        if employee.last_name:
+            lookup[key(employee.last_name)] = employee
+        if employee.developer:
+            lookup[key(employee.developer)] = employee
+    return lookup
+
+
+def _tl_employee(
+    team_leader: str,
+    tl_employees_by_last_name: dict[str, Employee],
+) -> Employee | None:
+    return tl_employees_by_last_name.get(key(team_leader))
 
 
 def _with_output_enrichment(

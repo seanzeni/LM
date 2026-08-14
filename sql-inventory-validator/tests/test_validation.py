@@ -44,7 +44,7 @@ def _input(elements: list[ElementRecord]) -> ValidationInput:
     return ValidationInput(
         employees=[
             Employee("DEV1", "Dev", "Person", "", "DEV1@domain.com"),
-            Employee("TL01", "Team", "Leader", "TL", "TL01@domain.com"),
+            Employee("TL01", "Team", "Leader", "TEAM TL", "TL01@domain.com"),
         ],
         projects=[
             Project("ABC1234", "ABC123", "Project", "TL01", "RGN-A", date(2026, 7, 20))
@@ -278,6 +278,37 @@ class ValidationTests(unittest.TestCase):
         self.assertFalse(any(issue.code == "REGION_MISMATCH" for issue in result.issues))
         self.assertEqual(result.good_elements, [])
 
+    def test_project_team_leader_not_found_blocks_good_output(self) -> None:
+        data = _input([_element()])
+        bad_project_data = ValidationInput(
+            employees=data.employees,
+            projects=[
+                Project("ABC1234", "ABC123", "Project", "MissingTL", "RGN-A", date(2026, 7, 20))
+            ],
+            elements=data.elements,
+            efforts=data.efforts,
+            bundles=data.bundles,
+            regions=data.regions,
+            misc_regions=data.misc_regions,
+            date_window=data.date_window,
+        )
+
+        result = validate_inventory(bad_project_data, "domain.com")
+
+        codes = {issue.code: issue.severity for issue in result.issues}
+        self.assertEqual(codes["PROJECT_TEAM_LEADER_NOT_FOUND"], Severity.WARNING)
+        self.assertEqual(result.good_elements, [])
+
+    def test_element_team_leader_not_found_blocks_good_output(self) -> None:
+        result = validate_inventory(
+            _input([_element(team_leader="Person")]),
+            "domain.com",
+        )
+
+        codes = {issue.code: issue.severity for issue in result.issues}
+        self.assertEqual(codes["ELEMENT_TEAM_LEADER_NOT_FOUND"], Severity.WARNING)
+        self.assertEqual(result.good_elements, [])
+
     def test_unknown_four_character_developer_is_allowed(self) -> None:
         result = validate_inventory(
             _input([_element(developer="ZZ99")]),
@@ -327,11 +358,14 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(element_issue.effort_prod_date, date(2026, 7, 20))
         self.assertEqual(element_issue.effort_team_lead, "TL01")
 
-    def test_team_leader_resolution_uses_only_tl_position(self) -> None:
+    def test_team_leader_resolution_requires_tl_position(self) -> None:
         data = _input([_element(team_leader="Person")])
         result = validate_inventory(data, "domain.com")
 
-        self.assertEqual(result.good_elements[0].team_leader, "Person")
+        self.assertTrue(
+            any(issue.code == "ELEMENT_TEAM_LEADER_NOT_FOUND" for issue in result.issues)
+        )
+        self.assertEqual(result.good_elements, [])
 
     def test_date_mismatch_stops_assignment_validation(self) -> None:
         result = validate_inventory(

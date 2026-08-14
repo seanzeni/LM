@@ -57,6 +57,22 @@ python -m inventory_validator --config config.json --draftemails
 `--emails` is still accepted as a backward-compatible alias for
 `--draftemails`.
 
+To open those draft files as editable Outlook emails for sender review, run:
+
+```powershell
+.\scripts\Open-EmailDrafts.ps1 -DraftFolder .\outputs\YYYYMMDD_HHMMSS\email_drafts
+```
+
+Draft `To` and `Cc` lines use semicolon-separated recipients for Outlook, and
+each project draft includes `rs.lm@domain.com` on `Cc` by default.
+
+Use `-SaveOnly` to save the messages to Outlook Drafts instead of opening each
+message window:
+
+```powershell
+.\scripts\Open-EmailDrafts.ps1 -DraftFolder .\outputs\YYYYMMDD_HHMMSS\email_drafts -SaveOnly
+```
+
 For a weekly SMTP send run, configure `email.from_address`, `email.smtp_host`,
 `email.smtp_port`, and optional SMTP credentials in `config.json`, then use:
 
@@ -83,7 +99,8 @@ allowing mid-month cleanup of the previous month.
 ## Blocking Errors
 
 Rows with blocking errors are excluded from the consolidated inventory source
-output. Warnings are reported but remain eligible.
+output. Most warnings are reported but remain eligible; required contact
+warnings stop the affected row or project until fixed.
 
 Current blocking checks include:
 
@@ -91,6 +108,10 @@ Current blocking checks include:
 - Element implementation date does not match the Project implementation date.
 - Element name is longer than eight characters.
 - Region validation fails for non-zero bundle TestEnvironment.
+- Project Team Leader cannot be resolved to an Employees row where `Position`
+  contains `TL`.
+- Element Team Leader cannot be resolved to an Employees row where `Position`
+  contains `TL`.
 
 Current warnings include:
 
@@ -99,6 +120,7 @@ Current warnings include:
 - Element Developer is empty.
 - Element Developer is not exactly four characters.
 - Element Team Leader is empty.
+- Project or Element Team Leader cannot find a respective TL in Employees.
 - Project Code is longer than eight characters and is not found in RSET Efforts,
   which is flagged as `POTENTIAL_MISTYPE`.
 
@@ -116,17 +138,20 @@ Rows stop further validation and assignment when:
 
 - No matching Project exists.
 - Required Element Developer is empty or not exactly four characters.
-- Required Element Team Leader is empty.
+- Required Project or Element Team Leader is empty or cannot resolve to a TL
+  employee.
 - Element Imp Date does not match Project Imp Date.
 
 Stop-condition issues are not default-placed. If RSET already has an Effort for
 the project, emails may still show that existing Effort/Bundle context so users
 can see what SQL currently says, but the row is not treated as assignable.
 
-Developer IDs are not validated against Employees. Employees is used only to
-resolve Team Leader last names where `Position = TL`. When a match is found,
-the clean output replaces the Team Leader value with that employee's
-four-character Developer ID and uses that ID for issue ownership when needed.
+Developer IDs are not validated against Employees. Employees is used to resolve
+Project and Element Team Leader values by Developer ID or Last Name where
+`Position` contains `TL`. When a match is found, the clean output replaces the
+Team Leader value with that employee's four-character Developer ID and uses
+that ID for issue ownership when needed. If no TL match is found, the row or
+project must be corrected before it can appear in good output.
 Project email drafts put all issue owners in `To` and resolved Team Leader
 emails in `Cc`.
 
