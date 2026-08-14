@@ -420,7 +420,7 @@ def _issue_resolution_instruction_lines() -> list[str]:
         "4. For missing projects, add or correct the Project row before rerunning validation.",
         "5. For implementation date mismatches, update the Element Imp Date or Project Imp Date so they match.",
         "6. For missing or invalid Developer/Team Leader values, correct the Element contact fields.",
-        "7. For cannot find TL issues, make sure the Team Leader value matches an Employees Developer ID or Last Name where Position contains TL.",
+        "7. For last Name not found TL issues, make sure the Team Leader value matches an Employees Developer ID or Last Name where Position contains TL.",
         "8. For potential mistypes, review long Project Codes that are not found in RSET Efforts.",
         "9. After source data is corrected, rerun the validation pipeline and confirm the issue is gone.",
     ]

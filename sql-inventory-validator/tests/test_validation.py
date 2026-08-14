@@ -295,8 +295,14 @@ class ValidationTests(unittest.TestCase):
 
         result = validate_inventory(bad_project_data, "domain.com")
 
-        codes = {issue.code: issue.severity for issue in result.issues}
-        self.assertEqual(codes["PROJECT_TEAM_LEADER_NOT_FOUND"], Severity.WARNING)
+        issue = next(
+            item for item in result.issues if item.code == "PROJECT_TEAM_LEADER_NOT_FOUND"
+        )
+        self.assertEqual(issue.severity, Severity.WARNING)
+        self.assertEqual(
+            issue.message,
+            "last Name [MissingTL] not found in Employees table containing a TL position.",
+        )
         self.assertEqual(result.good_elements, [])
 
     def test_element_team_leader_not_found_blocks_good_output(self) -> None:
@@ -305,8 +311,14 @@ class ValidationTests(unittest.TestCase):
             "domain.com",
         )
 
-        codes = {issue.code: issue.severity for issue in result.issues}
-        self.assertEqual(codes["ELEMENT_TEAM_LEADER_NOT_FOUND"], Severity.WARNING)
+        issue = next(
+            item for item in result.issues if item.code == "ELEMENT_TEAM_LEADER_NOT_FOUND"
+        )
+        self.assertEqual(issue.severity, Severity.WARNING)
+        self.assertEqual(
+            issue.message,
+            "last Name [Person] not found in Employees table containing a TL position.",
+        )
         self.assertEqual(result.good_elements, [])
 
     def test_unknown_four_character_developer_is_allowed(self) -> None:

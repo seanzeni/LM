@@ -110,7 +110,10 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 ValidationIssue(
                     severity=Severity.WARNING,
                     code="PROJECT_TEAM_LEADER_NOT_FOUND",
-                    message="cannot find TL for Project Team Leader.",
+                    message=(
+                        f"last Name [{project.team_leader.strip()}] not found in "
+                        "Employees table containing a TL position."
+                    ),
                     project_code=project.project_code,
                     project_imp_date=project.imp_date,
                 )
@@ -282,7 +285,10 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             add_issue(
                 Severity.WARNING,
                 "ELEMENT_TEAM_LEADER_NOT_FOUND",
-                "cannot find TL for Element Team Leader.",
+                (
+                    f"last Name [{element.team_leader.strip()}] not found in "
+                    "Employees table containing a TL position."
+                ),
                 include_assignment_context=False,
             )
             missing_required_contact = True
