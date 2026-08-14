@@ -173,10 +173,7 @@ class OutputTests(unittest.TestCase):
             self.assertIn("Owner=DEV1 <DEV1@domain.com>", draft)
             self.assertIn("TeamLead=TL01@domain.com", draft)
             self.assertIn("Element Imp Date=2026-07-21", draft)
-            self.assertIn("Element Data: Project=ABC1234; Trans ID=TRN2", draft)
-            self.assertIn("Developer=DEV3; Team Leader=Leader; Package=PKG2", draft)
-            self.assertIn("Subsystem=N/A; Application=APP2; Area=AREA2", draft)
-            self.assertIn("Comments=Needs review; MajorFunctions=Major; MinorFunctions=Minor", draft)
+            self.assertNotIn("Element Data:", draft)
             self.assertIn("Review the project draft for your Project Code.", instructions)
 
     def test_date_mismatch_email_does_not_show_assignment_context(self) -> None:

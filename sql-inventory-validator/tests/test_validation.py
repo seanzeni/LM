@@ -303,6 +303,10 @@ class ValidationTests(unittest.TestCase):
             issue.message,
             "last Name [MissingTL] not found in Employees table containing a TL position.",
         )
+        self.assertEqual(issue.element, "ELM0001")
+        self.assertEqual(issue.type, "BCOB")
+        self.assertEqual(issue.owner_email, "DEV1@domain.com")
+        self.assertEqual(issue.cc_email, "TL01@domain.com")
         self.assertEqual(result.good_elements, [])
 
     def test_element_team_leader_not_found_blocks_good_output(self) -> None:

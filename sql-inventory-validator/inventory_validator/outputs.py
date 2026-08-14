@@ -439,34 +439,7 @@ def _issue_email_lines(
     if issue.code == "ELEMENT_IMP_DATE_MISMATCH":
         parts.append(f"Element Imp Date={_display_value(issue.element_imp_date)}")
     parts.append(issue.message)
-    return [
-        " ".join(parts),
-        f"  Element Data: {_element_issue_data_text(issue)}",
-    ]
-
-
-def _element_issue_data_text(issue: ValidationIssue) -> str:
-    values = {
-        "Project": issue.project_code,
-        "Trans ID": issue.trans_id,
-        "Element": issue.element,
-        "Type": issue.type,
-        "Developer": issue.element_developer,
-        "Team Leader": issue.element_team_leader,
-        "Package": issue.ndvr_package_name,
-        "Subsystem": issue.subsystem,
-        "Application": issue.application,
-        "Area": issue.application_area,
-        "Element Imp Date": issue.element_imp_date,
-        "ImportID": issue.import_id,
-        "ImportDate": issue.import_date,
-        "Comments": issue.comments,
-        "MajorFunctions": issue.major_functions,
-        "MinorFunctions": issue.minor_functions,
-    }
-    return "; ".join(
-        f"{name}={_display_value(value)}" for name, value in values.items()
-    )
+    return [" ".join(parts)]
 
 
 def _display_value(value: object) -> str:

@@ -87,36 +87,24 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
 
     issues: list[ValidationIssue] = []
     bad_element_ids: set[int] = set()
-    bad_project_team_leader_keys: set[str] = set()
+    project_team_leader_issues: dict[str, tuple[str, str]] = {}
 
     for project in data.projects:
         if not data.date_window.contains(project.imp_date):
             continue
 
         if not project.team_leader.strip():
-            bad_project_team_leader_keys.add(key(project.project_code))
-            issues.append(
-                ValidationIssue(
-                    severity=Severity.WARNING,
-                    code="PROJECT_TEAM_LEADER_MISSING",
-                    message="Project Team Leader is empty.",
-                    project_code=project.project_code,
-                    project_imp_date=project.imp_date,
-                )
+            project_team_leader_issues[key(project.project_code)] = (
+                "PROJECT_TEAM_LEADER_MISSING",
+                "Project Team Leader is empty.",
             )
         elif not _tl_employee(project.team_leader, tl_employees_by_last_name):
-            bad_project_team_leader_keys.add(key(project.project_code))
-            issues.append(
-                ValidationIssue(
-                    severity=Severity.WARNING,
-                    code="PROJECT_TEAM_LEADER_NOT_FOUND",
-                    message=(
-                        f"last Name [{project.team_leader.strip()}] not found in "
-                        "Employees table containing a TL position."
-                    ),
-                    project_code=project.project_code,
-                    project_imp_date=project.imp_date,
-                )
+            project_team_leader_issues[key(project.project_code)] = (
+                "PROJECT_TEAM_LEADER_NOT_FOUND",
+                (
+                    f"last Name [{project.team_leader.strip()}] not found in "
+                    "Employees table containing a TL position."
+                ),
             )
 
     for element in data.elements:
@@ -262,8 +250,15 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
                 include_existing_effort_context=True,
             )
             continue
-        elif element.project_key in bad_project_team_leader_keys:
-            bad_element_ids.add(id(element))
+        elif element.project_key in project_team_leader_issues:
+            issue_code, issue_message = project_team_leader_issues[element.project_key]
+            add_issue(
+                Severity.WARNING,
+                issue_code,
+                issue_message,
+                include_assignment_context=False,
+                include_existing_effort_context=True,
+            )
             continue
 
         if len(element.element.strip()) > 8:
@@ -379,7 +374,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
     for element in data.elements:
         if id(element) in bad_element_ids:
             continue
-        if element.project_key in bad_project_team_leader_keys:
+        if element.project_key in project_team_leader_issues:
             continue
         if not _is_in_scope(element, projects_by_code, data.date_window):
             continue

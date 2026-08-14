@@ -164,8 +164,7 @@ sections so users can tell which source owns each value:
 - `PID Data`: Project Imp Date, Developers, and Team Leads from the
   ProdInventory/PID-side issue ownership.
 - `Issues`: grouped by owner, with one row per issue showing severity, code,
-  element, type, team lead, issue message, and an `Element Data` line with the
-  affected Element row fields. Empty values are shown as `N/A`.
+  element, type, team lead, and issue message.
 
 When email drafts are generated, the app also writes
 `email_drafts/issue_resolution_instructions.txt` with simple steps for fixing
