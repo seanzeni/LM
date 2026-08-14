@@ -47,7 +47,7 @@ def _input(elements: list[ElementRecord]) -> ValidationInput:
             Employee("TL01", "Team", "Leader", "TEAM TL", "TL01@domain.com"),
         ],
         projects=[
-            Project("ABC1234", "ABC123", "Project", "TL01", "RGN-A", date(2026, 7, 20))
+            Project("ABC1234", "ABC123", "Project", "Leader", "RGN-A", date(2026, 7, 20))
         ],
         elements=elements,
         efforts=[Effort("ABC1234", 10, "TL01", None, None, date(2026, 7, 20), None)],
@@ -140,7 +140,7 @@ class ValidationTests(unittest.TestCase):
             employees=data.employees,
             projects=[
                 *data.projects,
-                Project("ZZZ9999", "ZZZ999", "Unassigned", "TL01", "RGN-A", date(2026, 7, 20)),
+                Project("ZZZ9999", "ZZZ999", "Unassigned", "Leader", "RGN-A", date(2026, 7, 20)),
             ],
             elements=data.elements,
             efforts=data.efforts,
@@ -162,7 +162,7 @@ class ValidationTests(unittest.TestCase):
             employees=data.employees,
             projects=[
                 *data.projects,
-                Project("ABC1234567", "ABC123", "Long Project", "TL01", "RGN-A", date(2026, 7, 20)),
+                Project("ABC1234567", "ABC123", "Long Project", "Leader", "RGN-A", date(2026, 7, 20)),
             ],
             elements=data.elements,
             efforts=data.efforts,
@@ -203,7 +203,7 @@ class ValidationTests(unittest.TestCase):
         skipped_data = ValidationInput(
             employees=data.employees,
             projects=[
-                Project("ABC1234", "ABC123", "Project", "TL01", "rgn-a/sys-a", date(2026, 7, 20))
+                Project("ABC1234", "ABC123", "Project", "Leader", "rgn-a/sys-a", date(2026, 7, 20))
             ],
             elements=data.elements,
             efforts=data.efforts,
@@ -243,7 +243,7 @@ class ValidationTests(unittest.TestCase):
             employees=data.employees,
             projects=[
                 *data.projects,
-                Project("FUT2027", "FUT202", "Future", "TL01", "RGN-A", date(2027, 7, 7)),
+                Project("FUT2027", "FUT202", "Future", "Leader", "RGN-A", date(2027, 7, 7)),
             ],
             elements=data.elements,
             efforts=data.efforts,
@@ -307,6 +307,32 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(issue.type, "BCOB")
         self.assertEqual(issue.owner_email, "DEV1@domain.com")
         self.assertEqual(issue.cc_email, "TL01@domain.com")
+        self.assertEqual(result.good_elements, [])
+
+    def test_project_team_leader_matches_last_name_only(self) -> None:
+        data = _input([_element()])
+        developer_id_project_data = ValidationInput(
+            employees=data.employees,
+            projects=[
+                Project("ABC1234", "ABC123", "Project", "TL01", "RGN-A", date(2026, 7, 20))
+            ],
+            elements=data.elements,
+            efforts=data.efforts,
+            bundles=data.bundles,
+            regions=data.regions,
+            misc_regions=data.misc_regions,
+            date_window=data.date_window,
+        )
+
+        result = validate_inventory(developer_id_project_data, "domain.com")
+
+        issue = next(
+            item for item in result.issues if item.code == "PROJECT_TEAM_LEADER_NOT_FOUND"
+        )
+        self.assertEqual(
+            issue.message,
+            "last Name [TL01] not found in Employees table containing a TL position.",
+        )
         self.assertEqual(result.good_elements, [])
 
     def test_element_team_leader_not_found_blocks_good_output(self) -> None:
@@ -405,7 +431,7 @@ class ValidationTests(unittest.TestCase):
         rd8560_data = ValidationInput(
             employees=data.employees,
             projects=[
-                Project("RD8560", "RD8560", "RD8560", "TL01", "RGN-A", date(2026, 7, 12)),
+                Project("RD8560", "RD8560", "RD8560", "Leader", "RGN-A", date(2026, 7, 12)),
             ],
             elements=data.elements,
             efforts=[

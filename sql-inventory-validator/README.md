@@ -147,11 +147,13 @@ the project, emails may still show that existing Effort/Bundle context so users
 can see what SQL currently says, but the row is not treated as assignable.
 
 Developer IDs are not validated against Employees. Employees is used to resolve
-Project and Element Team Leader values by Developer ID or Last Name where
-`Position` contains `TL`. When a match is found, the clean output replaces the
-Team Leader value with that employee's four-character Developer ID and uses
-that ID for issue ownership when needed. If no TL match is found, the row or
-project must be corrected before it can appear in good output.
+Project and Element Team Leader values by Last Name where `Position` contains
+`TL`. When a match is found, the clean output replaces the Team Leader value
+with that employee's four-character Developer ID and uses that ID for issue
+ownership when needed. If no TL match is found, correct the Team Leader value
+in both the Project and Elements tables associated with the project so it
+matches the Last Name of a TL from Employees before it can appear in good
+output.
 Project email drafts put all issue owners in `To` and resolved Team Leader
 emails in `Cc`. Element Developer emails are also added to `To` so developers
 are aware of issues on their items even when ownership routes elsewhere.

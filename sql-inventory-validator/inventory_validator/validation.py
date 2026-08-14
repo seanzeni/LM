@@ -409,8 +409,6 @@ def _tl_employees_by_last_name(
             continue
         if employee.last_name:
             lookup[key(employee.last_name)] = employee
-        if employee.developer:
-            lookup[key(employee.developer)] = employee
     return lookup
 
 
