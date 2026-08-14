@@ -301,7 +301,8 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(issue.severity, Severity.WARNING)
         self.assertEqual(
             issue.message,
-            "last Name [MissingTL] not found in Employees table containing a TL position.",
+            'last Name [MissingTL] not found in Employees table containing a TL position.'
+            ' Change to "Leader" to match the RSET Effort TL role to PID.',
         )
         self.assertEqual(issue.element, "ELM0001")
         self.assertEqual(issue.type, "BCOB")
@@ -331,7 +332,8 @@ class ValidationTests(unittest.TestCase):
         )
         self.assertEqual(
             issue.message,
-            "last Name [TL01] not found in Employees table containing a TL position.",
+            'last Name [TL01] not found in Employees table containing a TL position.'
+            ' Change to "Leader" to match the RSET Effort TL role to PID.',
         )
         self.assertEqual(result.good_elements, [])
 
@@ -347,7 +349,8 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(issue.severity, Severity.WARNING)
         self.assertEqual(
             issue.message,
-            "last Name [Person] not found in Employees table containing a TL position.",
+            'last Name [Person] not found in Employees table containing a TL position.'
+            ' Change to "Leader" to match the RSET Effort TL role to PID.',
         )
         self.assertEqual(result.good_elements, [])
 

@@ -434,12 +434,23 @@ def _issue_email_lines(
         f"Element={_display_value(issue.element)}",
         f"Type={_display_value(issue.type)}",
         f"Owner={_person_label(issue.owner_id, issue.owner_email) or 'N/A'}",
-        f"TeamLead={_person_label('', issue.cc_email) or issue.effort_team_lead or 'N/A'}",
+        f"TeamLead={_issue_team_lead_text(issue)}",
     ]
     if issue.code == "ELEMENT_IMP_DATE_MISMATCH":
         parts.append(f"Element Imp Date={_display_value(issue.element_imp_date)}")
     parts.append(issue.message)
     return [" ".join(parts)]
+
+
+def _issue_team_lead_text(issue: ValidationIssue) -> str:
+    if issue.code in {
+        "PROJECT_TEAM_LEADER_MISSING",
+        "PROJECT_TEAM_LEADER_NOT_FOUND",
+        "ELEMENT_TEAM_LEADER_MISSING",
+        "ELEMENT_TEAM_LEADER_NOT_FOUND",
+    }:
+        return "N/A"
+    return _person_label("", issue.cc_email) or "N/A"
 
 
 def _display_value(value: object) -> str:
@@ -464,7 +475,7 @@ def _issue_resolution_instruction_lines() -> list[str]:
         "4. For missing projects, add or correct the Project row before rerunning validation.",
         "5. For implementation date mismatches, update the Element Imp Date or Project Imp Date so they match.",
         "6. For missing or invalid Developer/Team Leader values, correct the Element contact fields.",
-        "7. For last Name not found TL issues, correct the Team Leader value in both the Project and Elements tables associated with this project so it matches the Last Name of an Employees row where Position contains TL.",
+        "7. For last Name not found TL issues, correct the Team Leader value in both the Project and Elements tables associated with this project so it matches the Last Name of an Employees row where Position contains TL. If the issue suggests a Change to value, use that Last Name to align PID with the RSET Effort TL role.",
         "8. For potential mistypes, review long Project Codes that are not found in RSET Efforts.",
         "9. After source data is corrected, rerun the validation pipeline and confirm the issue is gone.",
     ]

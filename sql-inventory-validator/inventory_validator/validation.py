@@ -76,6 +76,7 @@ def _team_leader_email(
 
 def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOutput:
     tl_employees_by_last_name = _tl_employees_by_last_name(data.employees)
+    tl_employees_by_developer = _tl_employees_by_developer(data.employees)
     projects_by_code = {key(project.project_code): project for project in data.projects}
     efforts_by_project = {key(effort.id): effort for effort in data.efforts}
     bundles_by_sequence = {
@@ -96,14 +97,19 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
         if not project.team_leader.strip():
             project_team_leader_issues[key(project.project_code)] = (
                 "PROJECT_TEAM_LEADER_MISSING",
-                "Project Team Leader is empty.",
+                _team_leader_missing_message(
+                    "Project Team Leader is empty.",
+                    efforts_by_project.get(key(project.project_code)),
+                    tl_employees_by_developer,
+                ),
             )
         elif not _tl_employee(project.team_leader, tl_employees_by_last_name):
             project_team_leader_issues[key(project.project_code)] = (
                 "PROJECT_TEAM_LEADER_NOT_FOUND",
-                (
-                    f"last Name [{project.team_leader.strip()}] not found in "
-                    "Employees table containing a TL position."
+                _team_leader_not_found_message(
+                    project.team_leader,
+                    efforts_by_project.get(key(project.project_code)),
+                    tl_employees_by_developer,
                 ),
             )
 
@@ -290,7 +296,11 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             add_issue(
                 Severity.WARNING,
                 "ELEMENT_TEAM_LEADER_MISSING",
-                "Element Team Leader is empty.",
+                _team_leader_missing_message(
+                    "Element Team Leader is empty.",
+                    effort,
+                    tl_employees_by_developer,
+                ),
                 include_assignment_context=False,
             )
             missing_required_contact = True
@@ -298,9 +308,10 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             add_issue(
                 Severity.WARNING,
                 "ELEMENT_TEAM_LEADER_NOT_FOUND",
-                (
-                    f"last Name [{element.team_leader.strip()}] not found in "
-                    "Employees table containing a TL position."
+                _team_leader_not_found_message(
+                    element.team_leader,
+                    effort,
+                    tl_employees_by_developer,
                 ),
                 include_assignment_context=False,
             )
@@ -412,11 +423,58 @@ def _tl_employees_by_last_name(
     return lookup
 
 
+def _tl_employees_by_developer(
+    employees: list[Employee],
+) -> dict[str, Employee]:
+    return {
+        key(employee.developer): employee
+        for employee in employees
+        if employee.developer and "TL" in key(employee.position)
+    }
+
+
 def _tl_employee(
     team_leader: str,
     tl_employees_by_last_name: dict[str, Employee],
 ) -> Employee | None:
     return tl_employees_by_last_name.get(key(team_leader))
+
+
+def _team_leader_not_found_message(
+    team_leader: str,
+    effort: Effort | None,
+    tl_employees_by_developer: dict[str, Employee],
+) -> str:
+    return (
+        f"last Name [{team_leader.strip()}] not found in Employees table "
+        "containing a TL position."
+        + _rset_tl_last_name_hint(effort, tl_employees_by_developer)
+    )
+
+
+def _team_leader_missing_message(
+    base_message: str,
+    effort: Effort | None,
+    tl_employees_by_developer: dict[str, Employee],
+) -> str:
+    return base_message + _rset_tl_last_name_hint(effort, tl_employees_by_developer)
+
+
+def _rset_tl_last_name_hint(
+    effort: Effort | None,
+    tl_employees_by_developer: dict[str, Employee],
+) -> str:
+    if not effort or not effort.team_lead:
+        return ""
+
+    team_lead_employee = tl_employees_by_developer.get(key(effort.team_lead))
+    if not team_lead_employee or not team_lead_employee.last_name:
+        return ""
+
+    return (
+        f' Change to "{team_lead_employee.last_name}" to match the RSET '
+        "Effort TL role to PID."
+    )
 
 
 def _with_output_enrichment(

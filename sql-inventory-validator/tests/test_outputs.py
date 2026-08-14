@@ -130,6 +130,22 @@ class OutputTests(unittest.TestCase):
                         element_developer_email="DEV3@domain.com",
                         cc_email="TL01@domain.com",
                     ),
+                    ValidationIssue(
+                        severity=Severity.WARNING,
+                        code="ELEMENT_TEAM_LEADER_NOT_FOUND",
+                        message=(
+                            "last Name [MissingTL] not found in Employees table "
+                            "containing a TL position. Change to \"Leader\" to "
+                            "match the RSET Effort TL role to PID."
+                        ),
+                        project_code="ABC1234",
+                        element="ELM0003",
+                        type="BCOB",
+                        owner_id="DEV4",
+                        owner_email="DEV4@domain.com",
+                        element_developer_email="DEV4@domain.com",
+                        effort_team_lead="RSET",
+                    ),
                 ],
                 good_elements=[_element()],
                 write_csv=True,
@@ -159,7 +175,10 @@ class OutputTests(unittest.TestCase):
             self.assertEqual(good_rows["Misc Lookup Source"][0], "region_prefix")
             self.assertIn("TestEnvironment=1057/42", good_rows["Misc Lookup Detail"][0])
             self.assertIn("Subject: Inventory data issues need review - ABC1234", draft)
-            self.assertIn("To: DEV1@domain.com; DEV2@domain.com; DEV3@domain.com", draft)
+            self.assertIn(
+                "To: DEV1@domain.com; DEV2@domain.com; DEV3@domain.com; DEV4@domain.com",
+                draft,
+            )
             self.assertIn("Cc: TL01@domain.com; rs.lm@custom.example", draft)
             self.assertIn("RSET Data", draft)
             self.assertIn("Associated Bundle: DEFAULT-JULY", draft)
@@ -167,11 +186,16 @@ class OutputTests(unittest.TestCase):
             self.assertIn("PID Data", draft)
             self.assertIn("Project Imp Date: 2026-07-20", draft)
             self.assertIn("Element Developer Emails: DEV3@domain.com", draft)
-            self.assertIn("Effort Team Lead(s): TL99", draft)
+            self.assertIn("Effort Team Lead(s): RSET, TL99", draft)
             self.assertIn("Owner: DEV1 <DEV1@domain.com>", draft)
             self.assertIn("Owner: DEV2 <DEV2@domain.com>", draft)
             self.assertIn("Owner=DEV1 <DEV1@domain.com>", draft)
             self.assertIn("TeamLead=TL01@domain.com", draft)
+            self.assertIn(
+                "ELEMENT_TEAM_LEADER_NOT_FOUND: Element=ELM0003 Type=BCOB "
+                "Owner=DEV4 <DEV4@domain.com> TeamLead=N/A",
+                draft,
+            )
             self.assertIn("Element Imp Date=2026-07-21", draft)
             self.assertNotIn("Element Data:", draft)
             self.assertIn("Review the project draft for your Project Code.", instructions)
