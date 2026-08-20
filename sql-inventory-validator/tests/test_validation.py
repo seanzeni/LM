@@ -47,7 +47,7 @@ def _input(elements: list[ElementRecord]) -> ValidationInput:
             Employee("TL01", "Team", "Leader", "TEAM TL", "TL01@domain.com"),
         ],
         projects=[
-            Project("ABC1234", "ABC123", "Project", "Leader", "RGN-A", date(2026, 7, 20))
+            Project("ABC1234", "ABC123", "Project", "Leader", "RGN2/SYS1", date(2026, 7, 20))
         ],
         elements=elements,
         efforts=[Effort("ABC1234", 10, "TL01", None, None, date(2026, 7, 20), None)],
@@ -76,7 +76,9 @@ class ValidationTests(unittest.TestCase):
         data = _input([_element(subsystem="NOT_THE_SYSTEM")])
         misc_data = ValidationInput(
             employees=data.employees,
-            projects=data.projects,
+            projects=[
+                Project("ABC1234", "ABC123", "Project", "Leader", "RGN-Proper/CanonicalSystem", date(2026, 7, 20))
+            ],
             elements=data.elements,
             efforts=[Effort("ABC1234", 1057, "TL01", None, None, date(2026, 7, 20), None)],
             bundles=[Bundle("Bundle-Id-Is-Not-The-Key", 1057, 42, date(2026, 7, 20))],
@@ -466,23 +468,39 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(mismatch_issue.bundle_prod_date, date(2026, 6, 19))
         self.assertEqual(mismatch_issue.effort_prod_date, date(2026, 6, 19))
 
-    def test_region_mismatch_is_error(self) -> None:
+    def test_region_mismatch_is_warning_and_good_output_uses_project_split(self) -> None:
         data = _input([_element(subsystem="SYS1")])
         bad_data = ValidationInput(
             employees=data.employees,
-            projects=data.projects,
+            projects=[
+                Project("ABC1234", "ABC123", "Project", "Leader", "ABC/PROJECTSYS", date(2026, 7, 20))
+            ],
             elements=data.elements,
             efforts=data.efforts,
             bundles=data.bundles,
-            regions=[Region("ABC1", 2)],
+            regions=data.regions,
             misc_regions=data.misc_regions,
             date_window=data.date_window,
         )
 
         result = validate_inventory(bad_data, "domain.com")
 
-        self.assertTrue(any(issue.code == "REGION_MISMATCH" for issue in result.issues))
-        self.assertEqual(result.good_elements, [])
+        region_issue = next(
+            issue for issue in result.issues if issue.code == "REGION_MISMATCH"
+        )
+        self.assertEqual(region_issue.severity, Severity.WARNING)
+        self.assertEqual(
+            region_issue.message,
+            "Project Merge Region does not match expected bundle release region.",
+        )
+        self.assertEqual(len(result.good_elements), 1)
+        self.assertEqual(result.good_elements[0].project_merge_region, "ABC")
+        self.assertEqual(result.good_elements[0].misc_region, "ABC")
+        self.assertEqual(result.good_elements[0].misc_system, "PROJECTSYS")
+        self.assertEqual(
+            result.good_elements[0].misc_lookup_source,
+            "project_merge_region_mismatch",
+        )
 
 
 if __name__ == "__main__":
