@@ -175,14 +175,17 @@ the common issue types.
 The clean CSV output is always written as `consolidated_inventory_source.csv`.
 It includes:
 
-- `Merge Region` from `MiscEnvironmentSystem.Region`.
+- `Merge Region` from the expected RSET/MiscEnvironmentSystem release path, or
+  from the Project `Merge Region` split when the Project field does not match
+  the expected bundle release region.
 - Associated `Bundle Id` and `Bundle Sequence`.
-- Canonical `System` from MiscEnvironmentSystem.
-- Canonical `Region` from MiscEnvironmentSystem.
+- `System` and `Region` from the expected RSET/MiscEnvironmentSystem release
+  path, or from the Project `Merge Region` split when it does not match the
+  expected bundle release region.
 - `Misc Lookup Source` and `Misc Lookup Detail` trace columns showing whether
   the output Region/System came from the region-prefix path, direct system
-  fallback, Project Merge Region split for default TestEnvironment 0, or was
-  unresolved.
+  fallback, Project Merge Region split for default TestEnvironment 0, Project
+  Merge Region mismatch handling, or was unresolved.
 
 MiscEnvironmentSystem is selected through the release location path:
 `Effort.BundleSequence -> Bundle.Sequence -> Bundle.TestEnvironment ->
@@ -193,6 +196,12 @@ match. For default bundles with `TestEnvironment = 0`, the validator splits
 the Project `Merge Region` value on `/`, uppercases both pieces, and uses the
 first half as Region and the second half as System. If the Package contains
 `ARCHIVE`, System is overridden to `PRIVATE1`.
+
+For non-zero bundle TestEnvironment values, the RSET path is used as the
+expected bundle release region. If the Project `Merge Region` split does not
+match that expected Region/System, the validator writes a `REGION_MISMATCH`
+warning and outputs the split Project values so the good inventory source
+reflects what PID currently says.
 
 The output workbook includes summary/detail sheets for:
 
