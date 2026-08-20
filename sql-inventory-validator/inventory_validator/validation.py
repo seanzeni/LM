@@ -363,8 +363,7 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             )
             continue
 
-        expected_prefixes = region_prefixes_by_env.get(bundle.test_environment, set())
-        actual_misc_region = _resolve_misc_region(
+        expected_misc_region = _resolve_misc_region(
             element=element,
             bundle=bundle,
             region_prefixes_by_env=region_prefixes_by_env,
@@ -372,13 +371,12 @@ def validate_inventory(data: ValidationInput, email_domain: str) -> ValidationOu
             misc_regions_by_system=misc_regions_by_system,
             misc_system_source_column=data.misc_system_source_column,
         ).misc_region
-        actual_prefix = actual_misc_region.prefix if actual_misc_region else ""
 
-        if expected_prefixes and actual_prefix and actual_prefix not in expected_prefixes:
+        if _project_merge_region_mismatch(project, expected_misc_region):
             add_issue(
-                Severity.ERROR,
+                Severity.WARNING,
                 "REGION_MISMATCH",
-                "Element system region does not match the Bundle TestEnvironment region.",
+                "Project Merge Region does not match expected bundle release region.",
             )
 
     good_elements = []
@@ -525,6 +523,21 @@ def _with_output_enrichment(
                 f"Bundle.Sequence/TestEnvironment={bundle.sequence}/0; "
                 f"Project Merge Region={project.merge_region}; "
                 f"Region={default_region}; System={default_system}"
+            )
+    elif bundle and bundle.test_environment != 0 and project:
+        project_region, project_system = _split_default_merge_region(project.merge_region)
+        if _project_merge_region_mismatch(project, misc_region):
+            resolved_merge_region = project_region
+            resolved_region = project_region
+            resolved_system = project_system
+            lookup_source = "project_merge_region_mismatch"
+            lookup_detail = (
+                f"Bundle.Sequence/TestEnvironment={bundle.sequence}/"
+                f"{bundle.test_environment}; expected Region="
+                f"{misc_region.region if misc_region else 'N/A'}; expected System="
+                f"{misc_region.system if misc_region else 'N/A'}; "
+                f"Project Merge Region={project.merge_region}; output Region="
+                f"{project_region}; output System={project_system}"
             )
 
     if "ARCHIVE" in element.ndvr_package_name.upper():
@@ -678,6 +691,21 @@ def _split_default_merge_region(merge_region: str) -> tuple[str, str]:
         return merge_region.strip().upper(), ""
 
     return region.strip().upper(), system.strip().upper()
+
+
+def _project_merge_region_mismatch(
+    project: Project | None,
+    expected_misc_region: MiscSystemRegion | None,
+) -> bool:
+    if project is None or expected_misc_region is None or not project.merge_region.strip():
+        return False
+
+    project_region, project_system = _split_default_merge_region(project.merge_region)
+    if project_region and project_region[:3] != expected_misc_region.prefix:
+        return True
+    if project_system and key(project_system) != key(expected_misc_region.system):
+        return True
+    return False
 
 
 def _first_misc_region(
